@@ -773,6 +773,92 @@ def buscar_post_por_tag_ui():
         pausar()
 
 
+# === Helpers para mostrar “mis posts” y “mis comentarios” (tabla + detalle) ===
+def _obtener_mis_posts() -> List[Dict[str, Any]]:
+    if not Sesion.activa():
+        return []
+    return modelo.listar_posts_por_autor(POSTS_JSON, Sesion.id_autor)
+
+def _mostrar_tabla_y_detalle_posts(posts: List[Dict[str, Any]]) -> None:
+    if not posts:
+        console.print("[yellow]No tienes publicaciones.[/yellow]")
+        return
+    console.print(tabla_posts(posts, mostrar_autor=False))
+    console.print()  # separación
+    for p in posts:
+        render_post_twitter(p)
+        console.print()  # separación entre posts
+
+def _cargar_todos_los_posts() -> List[Dict[str, Any]]:
+    try:
+        datos = gestor_datos.cargar_datos(POSTS_JSON) or []
+        # Normalizar estructuras esperadas
+        for p in datos:
+            p.setdefault("comentarios", [])
+            p.setdefault("tags", [])
+        return datos
+    except Exception:
+        return []
+
+def _recolectar_mis_comentarios() -> List[Dict[str, Any]]:
+    """
+    Devuelve una lista de dicts:
+    {'id_comentario', 'id_post', 'fecha', 'autor', 'contenido'}
+    solo de comentarios cuyo id_autor == Sesion.id_autor
+    """
+    if not Sesion.activa():
+        return []
+    posts = _cargar_todos_los_posts()
+    mis: List[Dict[str, Any]] = []
+    for p in posts:
+        for c in p.get("comentarios") or []:
+            if str(c.get("id_autor") or "") == str(Sesion.id_autor):
+                mis.append({
+                    "id_comentario": str(c.get("id_comentario")),
+                    "id_post": str(p.get("id_post")),
+                    "fecha": str(c.get("fecha", "")),
+                    "autor": str(c.get("autor", "")),
+                    "contenido": str(c.get("contenido", "")),
+                })
+    return mis
+
+def _tabla_mis_comentarios(mis: List[Dict[str, Any]]) -> Table:
+    tabla = Table(
+        title="Mis Comentarios",
+        border_style="blue",
+        show_header=True,
+        header_style="bold magenta",
+        expand=True,
+    )
+    tabla.add_column("ID Comentario", width=14, style="dim")
+    tabla.add_column("ID Post", width=8)
+    tabla.add_column("Fecha", width=19)
+    tabla.add_column("Contenido", overflow="fold")
+    for c in mis:
+        contenido_corto = c["contenido"] if len(c["contenido"]) <= 80 else c["contenido"][:77] + "..."
+        tabla.add_row(c["id_comentario"], c["id_post"], c["fecha"], contenido_corto)
+    return tabla
+
+def _mostrar_tabla_y_detalle_mis_comentarios(mis: List[Dict[str, Any]]) -> None:
+    if not mis:
+        console.print("[yellow]No has realizado comentarios.[/yellow]")
+        return
+    console.print(_tabla_mis_comentarios(mis))
+    console.print()
+    # Mostrar detalle de los posts donde están mis comentarios (sin repetir)
+    posts_unicos = []
+    vistos = set()
+    for c in mis:
+        if c["id_post"] not in vistos:
+            vistos.add(c["id_post"])
+            posts_unicos.append(c["id_post"])
+    for id_post in posts_unicos:
+        post = modelo.buscar_post_por_id(POSTS_JSON, id_post)
+        if post:
+            render_post_twitter(post)
+            console.print()
+
+
 def editar_post_ui():
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para editar sus publicaciones.")
@@ -780,22 +866,34 @@ def editar_post_ui():
         return
 
     console.print(Panel.fit("[bold cyan]Editar Publicación[/bold cyan]", border_style="bright_blue"))
+
+    # 1) Mostrar primero mis posts (tabla + detalle)
+    mis_posts = _obtener_mis_posts()
+    if not mis_posts:
+        console.print("[yellow]No tienes publicaciones para editar.[/yellow]")
+        pausar()
+        return
+    _mostrar_tabla_y_detalle_posts(mis_posts)
+
+    # 2) Pedir ID del post a editar (validando que sea mío)
+    ids_validos = {p["id_post"] for p in mis_posts}
     id_post = Prompt.ask("[magenta]ID del post a editar[/magenta]").strip()
     if id_post == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
+    if id_post not in ids_validos:
+        mostrar_error("El ID indicado no pertenece a tus publicaciones.")
+        pausar()
+        return
+
     post = modelo.buscar_post_por_id(POSTS_JSON, id_post)
     if not post:
         mostrar_error("No existe un post con ese ID.")
         pausar()
         return
 
-    if post["id_autor"] != str(Sesion.id_autor):
-        mostrar_error("No puede editar un post que no es suyo.")
-        pausar()
-        return
-
+    # 3) Solicitar cambios
     console.print("\nPresione Enter para no modificar un campo.")
     nuevos: Dict[str, Any] = {}
     nuevo_titulo = Prompt.ask("[magenta]Título[/magenta]", default=post["titulo"]).strip()
@@ -805,6 +903,7 @@ def editar_post_ui():
         return
     if nuevo_titulo != post["titulo"]:
         nuevos["titulo"] = nuevo_titulo
+
     nuevo_contenido = Prompt.ask("[magenta]Contenido[/magenta]", default=post["contenido"]).strip()
     if nuevo_contenido == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
@@ -812,12 +911,14 @@ def editar_post_ui():
         return
     if nuevo_contenido != post["contenido"]:
         nuevos["contenido"] = nuevo_contenido
-    nuevos_tags = Prompt.ask("[magenta]Tags (coma)[/magenta]", default=", ".join(post.get("tags") or [])).strip()
+
+    actuales = ", ".join(post.get("tags") or [])
+    nuevos_tags = Prompt.ask("[magenta]Tags (coma)[/magenta]", default=actuales).strip()
     if nuevos_tags == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
-    if nuevos_tags != ", ".join(post.get("tags") or []):
+    if nuevos_tags != actuales:
         nuevos["tags"] = nuevos_tags
 
     if not nuevos:
@@ -825,9 +926,19 @@ def editar_post_ui():
         pausar()
         return
 
+    # 4) Confirmar y aplicar
+    if not Confirm.ask("[magenta]¿Confirmar actualización del post?[/magenta]", default=True):
+        console.print("[yellow]Operación cancelada.[/yellow]")
+        pausar()
+        return
+
     try:
         post_act = modelo.actualizar_post(POSTS_JSON, id_post, Sesion.id_autor, nuevos)
         mostrar_ok(f"Post actualizado: {post_act['titulo']}")
+        # 5) Mostrar resultado: tabla actualizada + vista detalle del post
+        mis_posts = _obtener_mis_posts()
+        _mostrar_tabla_y_detalle_posts(mis_posts)
+        ver_post_con_interacciones(id_post)
     except (modelo.PostNoEncontrado, modelo.AccesoNoAutorizado, modelo.ValidacionError) as e:
         mostrar_error(str(e))
     pausar()
@@ -840,11 +951,28 @@ def eliminar_post_ui():
         return
 
     console.print(Panel.fit("[bold cyan]Eliminar Publicación[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_blue"))
+
+    # 1) Mostrar primero mis posts (tabla + detalle)
+    mis_posts = _obtener_mis_posts()
+    if not mis_posts:
+        console.print("[yellow]No tienes publicaciones para eliminar.[/yellow]")
+        pausar()
+        return
+    _mostrar_tabla_y_detalle_posts(mis_posts)
+
+    # 2) Pedir ID del post a eliminar (validando que sea mío)
+    ids_validos = {p["id_post"] for p in mis_posts}
     id_post = Prompt.ask("[magenta]ID del post a eliminar[/magenta]").strip()
     if id_post == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
+    if id_post not in ids_validos:
+        mostrar_error("El ID indicado no pertenece a tus publicaciones.")
+        pausar()
+        return
+
+    # 3) Confirmar y aplicar
     if not Confirm.ask("[magenta]¿Seguro que desea eliminar este post?[/magenta]", default=False):
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
@@ -856,96 +984,66 @@ def eliminar_post_ui():
             mostrar_ok("Publicación eliminada.")
         else:
             mostrar_error("No existe un post con ese ID.")
+        # 4) Mostrar resultado: tabla actualizada + detalle de los restantes
+        mis_posts = _obtener_mis_posts()
+        if mis_posts:
+            _mostrar_tabla_y_detalle_posts(mis_posts)
+        else:
+            console.print("[yellow]Ya no tienes publicaciones.[/yellow]")
     except modelo.AccesoNoAutorizado as e:
-        mostrar_error(str(e))
-    pausar()
-
-
-# --- Menús: Comentarios (reto) ---
-def menu_comentarios():
-    while True:
-        console.print(
-            Panel(
-                "[bold yellow]1[/bold yellow]. Agregar comentario a un post\n"
-                "[bold yellow]2[/bold yellow]. Listar comentarios de un post\n"
-                "[bold yellow]3[/bold yellow]. Eliminar comentario de un post\n"
-                "[bold yellow]4[/bold yellow]. Volver",
-                title="[bold cyan]Comentarios[/bold cyan]",
-                border_style="bright_magenta",
-            )
-        )
-        opcion = Prompt.ask("[magenta]Opción[/magenta]", choices=["1", "2", "3", "4"], show_choices=False)
-        if opcion == "1":
-            agregar_comentario_ui()
-        elif opcion == "2":
-            listar_comentarios_ui()
-        elif opcion == "3":
-            eliminar_comentario_ui()
-        elif opcion == "4":
-            return
-
-
-def agregar_comentario_ui():
-    console.print(
-        Panel.fit("[bold cyan]Agregar Comentario[/bold cyan]", border_style="bright_magenta")
-    )
-    try:
-        id_post = pedir("ID del post")
-        if Sesion.activa():
-            autor_nombre = pedir("Nombre para mostrar", default=Sesion.nombre_autor)
-            id_autor = Sesion.id_autor
-        else:
-            autor_nombre = pedir("Nombre para mostrar")
-            id_autor = None
-        contenido = pedir_obligatorio("Contenido del comentario")
-        comentario = modelo.agregar_comentario_a_post(
-            POSTS_JSON, id_post, autor_nombre, contenido, id_autor=id_autor
-        )
-        mostrar_ok(f"Comentario agregado con ID {comentario['id_comentario']}.")
-    except Cancelado:
-        console.print("[yellow]Operación cancelada.[/yellow]")
-    except (modelo.PostNoEncontrado, modelo.ValidacionError) as e:
-        mostrar_error(str(e))
-    pausar()
-
-
-def listar_comentarios_ui():
-    console.print(Panel.fit("[bold cyan]Listar Comentarios[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_magenta"))
-    id_post = Prompt.ask("[magenta]ID del post[/magenta]").strip()
-    if id_post == "0":
-        console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
-        return
-    try:
-        comentarios = modelo.listar_comentarios_de_post(POSTS_JSON, id_post)
-        if not comentarios:
-            console.print("[yellow]Este post no tiene comentarios.[/yellow]")
-        else:
-            tabla = Table(title=f"Comentarios del Post #{id_post}", border_style="blue", header_style="bold magenta")
-            tabla.add_column("ID", style="dim", width=6)
-            tabla.add_column("Autor", width=20)
-            tabla.add_column("Fecha", width=19)
-            tabla.add_column("Contenido", width=60)
-            for c in comentarios:
-                tabla.add_row(c["id_comentario"], c["autor"], c["fecha"], c["contenido"])
-            console.print(tabla)
-    except modelo.PostNoEncontrado as e:
         mostrar_error(str(e))
     pausar()
 
 
 def eliminar_comentario_ui():
     console.print(Panel.fit("[bold cyan]Eliminar Comentario[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_magenta"))
-    id_post = Prompt.ask("[magenta]ID del post[/magenta]").strip()
-    if id_post == "0":
-        console.print("[yellow]Operación cancelada.[/yellow]")
+
+    # Requiere sesión para filtrar “mis comentarios”
+    if not Sesion.activa():
+        mostrar_error("Debe iniciar sesión para eliminar sus comentarios.")
         pausar()
         return
-    id_com = Prompt.ask("[magenta]ID del comentario[/magenta]").strip()
+
+    # 1) Mostrar primero mis comentarios (tabla + detalle de sus posts)
+    mis_coms = _recolectar_mis_comentarios()
+    if not mis_coms:
+        console.print("[yellow]No has realizado comentarios para eliminar.[/yellow]")
+        pausar()
+        return
+    _mostrar_tabla_y_detalle_mis_comentarios(mis_coms)
+
+    # Índice por id_comentario -> lista de id_post (por si hubiera colisiones)
+    idx: Dict[str, List[str]] = {}
+    for c in mis_coms:
+        idx.setdefault(c["id_comentario"], []).append(c["id_post"])
+
+    # 2) Pedir ID del comentario (y post si es necesario)
+    id_com = Prompt.ask("[magenta]ID del comentario a eliminar[/magenta]").strip()
     if id_com == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
+    if id_com not in idx:
+        mostrar_error("El ID de comentario no pertenece a tus comentarios.")
+        pausar()
+        return
+
+    posts_posibles = idx[id_com]
+    id_post = posts_posibles[0]
+    if len(posts_posibles) > 1:
+        # Desambiguar si ese id_comentario aparece más de una vez (raro, pero seguro)
+        id_post = Prompt.ask("[magenta]ID del post que contiene el comentario[/magenta]").strip()
+        if id_post not in posts_posibles:
+            mostrar_error("La combinación de IDs no es válida.")
+            pausar()
+            return
+
+    # 3) Confirmar y aplicar
+    if not Confirm.ask("[magenta]¿Seguro que desea eliminar este comentario?[/magenta]", default=False):
+        console.print("[yellow]Operación cancelada.[/yellow]")
+        pausar()
+        return
+
     try:
         ok = modelo.eliminar_comentario_de_post(
             POSTS_JSON, id_post, id_com, id_autor_en_sesion=Sesion.id_autor
@@ -954,6 +1052,12 @@ def eliminar_comentario_ui():
             mostrar_ok("Comentario eliminado.")
         else:
             mostrar_error("No se encontró el comentario.")
+        # 4) Mostrar resultado: tabla actualizada + detalle de posts con mis comentarios
+        mis_coms = _recolectar_mis_comentarios()
+        if mis_coms:
+            _mostrar_tabla_y_detalle_mis_comentarios(mis_coms)
+        else:
+            console.print("[yellow]Ya no tienes comentarios propios.[/yellow]")
     except (modelo.PostNoEncontrado, modelo.AccesoNoAutorizado) as e:
         mostrar_error(str(e))
     pausar()
