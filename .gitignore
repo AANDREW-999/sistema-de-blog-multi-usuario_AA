@@ -1,0 +1,63 @@
+.gitignore
+
+# Python-generated files
+build/
+dist/
+wheels/
+*.egg-info
+
+.idea
+
+# Archivos de texto Plano
+*.txt
+*.csv
+*.pkl
+
+# Entornos virtuales
+venv/
+.venv
+.venv/
+.uv/
+
+# Archivos de caché de Python
+__pycache__/
+*.py[cod]
+*.py[oc]
+*$py.class
+*.pyc
+
+# Archivos de configuración de PyCharm
+.idea/
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos de logs y temporales
+*.log
+*.tmp
+
+# Archivos de dependencias generados
+poetry.lock
+Pipfile.lock
+uv.lock
+
+# Archivos de Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# Archivos de tests
+.coverage
+.tox/
+.nox/
+
+# Archivos y cachés de Testing (Pytest)
+.pytest_cache/
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+pytest-report.html
+
+# Caché de Ruff
+.ruff_cache/
