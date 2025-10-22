@@ -24,7 +24,7 @@ import blog_multi_usuario as modelo
 # --- Rich ---
 from rich.console import Console, Group
 from rich.panel import Panel
-from rich.prompt import Confirm, IntPrompt, Prompt
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
 
@@ -45,7 +45,9 @@ def pedir(mensaje: str, *, password: bool = False, default: Optional[str] = None
     return valor.lower() if to_lower else valor
 
 # --- Configuración de rutas ---
-DIRECTORIO_DATOS = "data"
+# Hacemos la ruta a 'data/' robusta, independiente del cwd
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DIRECTORIO_DATOS = os.path.join(BASE_DIR, "data")
 AUTORES_CSV = os.path.join(DIRECTORIO_DATOS, "autores.csv")
 POSTS_JSON = os.path.join(DIRECTORIO_DATOS, "posts.json")
 
@@ -258,8 +260,8 @@ def ensure_sistema_y_bienvenida() -> Dict[str, Any]:
     # Asegurar autor Sistema
     autor_sys = modelo.buscar_autor_por_email(AUTORES_CSV, SISTEMA_EMAIL)
     if not autor_sys:
-        # Contraseña irrelevante para el sistema
-        autor_sys = modelo.crear_autor(AUTORES_CSV, SISTEMA_NOMBRE, SISTEMA_EMAIL, "sys_password_123")
+        # Contraseña irrelevante para el sistema (modelo no maneja contraseñas)
+        autor_sys = modelo.crear_autor(AUTORES_CSV, SISTEMA_NOMBRE, SISTEMA_EMAIL)
     # Asegurar post de bienvenida
     posts = modelo.buscar_posts_por_tag(POSTS_JSON, BIENVENIDA_TAG)
     posts = [p for p in posts if p.get("id_autor") == autor_sys["id_autor"]]
@@ -329,13 +331,8 @@ def registrar_ui() -> bool:
     try:
         nombre = pedir("Nombre del autor")
         email = pedir("Email", to_lower=True)
-        password = pedir("Contraseña", password=True)
-        password2 = pedir("Confirmar contraseña", password=True)
-        if password != password2:
-            mostrar_error("Las contraseñas no coinciden.")
-            pausar()
-            return False
-        autor = modelo.crear_autor(AUTORES_CSV, nombre, email, password)
+        # El modelo no maneja contraseñas; registro por email único
+        autor = modelo.crear_autor(AUTORES_CSV, nombre, email)
         Sesion.establecer(autor)
         mostrar_ok(f"Cuenta creada. Bienvenido, {autor['nombre_autor']}.")
         pausar()
@@ -350,7 +347,7 @@ def registrar_ui() -> bool:
         return False
 
 
-# --- Menús: Autores ---
+# --- Menú: Autores ---
 def menu_autores():
     while True:
         console.print(
@@ -383,13 +380,7 @@ def crear_autor_ui():
     try:
         nombre = pedir("Nombre del autor")
         email = pedir("Email", to_lower=True)
-        password = pedir("Contraseña", password=True)
-        password2 = pedir("Confirmar contraseña", password=True)
-        if password != password2:
-            mostrar_error("Las contraseñas no coinciden.")
-            pausar()
-            return
-        autor = modelo.crear_autor(AUTORES_CSV, nombre, email, password)
+        autor = modelo.crear_autor(AUTORES_CSV, nombre, email)
         mostrar_ok(f"Autor creado con ID [bold yellow]{autor['id_autor']}[/bold yellow].")
     except Cancelado:
         console.print("[yellow]Operación cancelada.[/yellow]")
@@ -486,8 +477,8 @@ def iniciar_sesion_ui() -> bool:
     console.print(Panel.fit("[bold cyan]Iniciar Sesión[/bold cyan]\n[dim]Use 0 en cualquier campo para salir.[/dim]", border_style="bright_cyan"))
     try:
         email = pedir("Email", to_lower=True)
-        password = pedir("Contraseña", password=True)
-        autor = modelo.autenticar(AUTORES_CSV, email, password)
+        # Autenticación simple por email (sin contraseña)
+        autor = modelo.buscar_autor_por_email(AUTORES_CSV, email)
         if autor:
             Sesion.establecer(autor)
             mostrar_ok(f"Bienvenido, {autor['nombre_autor']}.")
@@ -497,14 +488,8 @@ def iniciar_sesion_ui() -> bool:
         console.print("[yellow]Email no registrado.[/yellow]")
         if Confirm.ask("¿Desea crear una cuenta con este email?", default=True):
             nombre = pedir("Nombre del autor")
-            password_n = pedir("Contraseña", password=True)
-            password2 = pedir("Confirmar contraseña", password=True)
-            if password_n != password2:
-                mostrar_error("Las contraseñas no coinciden.")
-                pausar()
-                return False
             try:
-                autor = modelo.crear_autor(AUTORES_CSV, nombre, email, password_n)
+                autor = modelo.crear_autor(AUTORES_CSV, nombre, email)
                 Sesion.establecer(autor)
                 mostrar_ok(f"Cuenta creada e iniciada: {nombre}.")
                 pausar()
@@ -810,7 +795,7 @@ def eliminar_comentario_ui():
         return
     try:
         ok = modelo.eliminar_comentario_de_post(
-            POSTS_JSON, id_post, id_com, id_autor_en_sesion=id_autor_sesion
+            POSTS_JSON, id_post, id_com, id_autor_en_sesion=Sesion.id_autor
         )
         if ok:
             mostrar_ok("Comentario eliminado.")
