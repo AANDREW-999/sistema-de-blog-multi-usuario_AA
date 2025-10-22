@@ -25,8 +25,8 @@ repository = "https://github.com/AANDREW-999/sistema-de-blog-multi-usuario_AA.gi
 
 [tool.pytest.ini_options]
 # Directorios de búsqueda de pruebas. Por defecto es el directorio actual.
-# Aquí se especifica que solo busque en el directorio 'tests'.
-testpaths = "tests"
+# Aquí se especifica que solo busque en el directorio 'test'.
+testpaths = "test"
 
 # Opciones de verbosidad (más detalles en la salida).
 addopts = "-v"
