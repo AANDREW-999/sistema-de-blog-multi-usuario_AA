@@ -6,7 +6,7 @@ Responsable de leer y escribir datos en archivos planos (CSV y JSON).
 No contiene lógica de negocio, solo operaciones de I/O.
 
 Diseñado para trabajar con:
-- Autores (CSV): columnas ['id_autor', 'nombre_autor', 'email'].
+- Autores (CSV): columnas ['id_autor', 'nombre_autor', 'email', 'password_hash'].
 - Publicaciones (JSON): lista de objetos (posts) según el modelo.
 
 Funciones públicas:
@@ -22,7 +22,7 @@ import os
 import tempfile
 
 # Constantes de cabeceras para CSV de autores
-CAMPOS_AUTORES = ["id_autor", "nombre_autor", "email"]
+CAMPOS_AUTORES = ["id_autor", "nombre_autor", "email", "password_hash"]
 
 
 # ---------------------------

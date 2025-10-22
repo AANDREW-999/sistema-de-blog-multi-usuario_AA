@@ -10,7 +10,7 @@ Responsabilidades:
 - Delegar la persistencia en 'gestor_datos' (sin realizar I/O directo aquí).
 
 Convenciones de datos persistidos:
-- Autores (CSV): {'id_autor': str, 'nombre_autor': str, 'email': str}
+- Autores (CSV): {'id_autor': str, 'nombre_autor': str, 'email': str, 'password_hash': str}
 - Posts (JSON): {
     'id_post': str,
     'id_autor': str,
@@ -153,7 +153,7 @@ def _generar_id_comentario(post: Dict[str, Any]) -> int:
 # Autores (CSV)
 # =========================
 
-def crear_autor(autores_filepath: str, nombre_autor: str, email: str) -> Dict[str, Any]:
+def crear_autor(autores_filepath: str, nombre_autor: str, email: str, password_hash: str = "") -> Dict[str, Any]:
     """
     (CREATE) Crea un nuevo autor. Valida formato del email y unicidad.
 
@@ -161,6 +161,7 @@ def crear_autor(autores_filepath: str, nombre_autor: str, email: str) -> Dict[st
         autores_filepath: Ruta al CSV de autores.
         nombre_autor: Nombre a mostrar del autor.
         email: Correo electrónico único.
+        password_hash: Hash de la contraseña del autor (opcional).
 
     Returns:
         El diccionario del autor creado.
@@ -183,6 +184,7 @@ def crear_autor(autores_filepath: str, nombre_autor: str, email: str) -> Dict[st
         "id_autor": str(nuevo_id),
         "nombre_autor": nombre_autor.strip(),
         "email": email.strip().lower(),
+        "password_hash": str(password_hash or "").strip(),
     }
     autores.append(autor)
     gestor_datos.guardar_datos(autores_filepath, autores)
@@ -262,6 +264,9 @@ def actualizar_autor(
             if a.get("id_autor") != id_str and a.get("email", "").strip().lower() == nuevo_email:
                 raise EmailDuplicado(f"El email '{nuevo_email}' ya está en uso por otro autor.")
         autor["email"] = nuevo_email
+
+    if "password_hash" in datos_nuevos:
+        autor["password_hash"] = str(datos_nuevos["password_hash"] or "").strip()
 
     autores[idx] = autor
     gestor_datos.guardar_datos(autores_filepath, autores)
