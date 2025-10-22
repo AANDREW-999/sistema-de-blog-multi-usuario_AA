@@ -36,12 +36,11 @@ Este módulo utiliza 'gestor_datos' para cargar/guardar listas desde rutas de ar
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
-from datetime import datetime
 import re
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Sequence
 
 import gestor_datos
-
 
 # =========================
 # Excepciones de dominio

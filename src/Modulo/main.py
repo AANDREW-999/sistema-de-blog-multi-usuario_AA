@@ -15,11 +15,14 @@ Este módulo orquesta la interacción de usuario y delega:
 
 from __future__ import annotations
 
+# NUEVO: hashing de contraseñas (en memoria)
+import hashlib
 import os
+import secrets
 from typing import Any, Dict, List, Optional
 
-import gestor_datos
 import blog_multi_usuario as modelo
+import gestor_datos
 
 # --- Rich ---
 from rich.console import Console, Group
@@ -27,10 +30,6 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
-
-# NUEVO: hashing de contraseñas (en memoria)
-import hashlib
-import secrets
 
 console = Console()
 
@@ -1061,6 +1060,164 @@ def eliminar_comentario_ui():
     except (modelo.PostNoEncontrado, modelo.AccesoNoAutorizado) as e:
         mostrar_error(str(e))
     pausar()
+
+
+# --- Menú y UIs: Comentarios ---
+def agregar_comentario_ui():
+    if not Sesion.activa():
+        mostrar_error("Debe iniciar sesión para comentar.")
+        pausar()
+        return
+
+    console.print(Panel.fit("[bold cyan]Agregar Comentario[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_magenta"))
+    id_post = Prompt.ask("[magenta]ID del post a comentar[/magenta]").strip()
+    if id_post == "0":
+        console.print("[yellow]Operación cancelada.[/yellow]")
+        pausar()
+        return
+
+    post = modelo.buscar_post_por_id(POSTS_JSON, id_post)
+    if not post:
+        mostrar_error("No existe un post con ese ID.")
+        pausar()
+        return
+
+    # Mostrar primero la vista detalle del post a comentar
+    render_post_twitter(post)
+    console.print()
+    contenido = pedir_obligatorio("Contenido del comentario")
+    if not Confirm.ask("[magenta]¿Publicar este comentario?[/magenta]", default=True):
+        console.print("[yellow]Operación cancelada.[/yellow]")
+        pausar()
+        return
+
+    try:
+        modelo.agregar_comentario_a_post(
+            POSTS_JSON, id_post, Sesion.nombre_autor or "Anónimo", contenido, id_autor=Sesion.id_autor
+        )
+        mostrar_ok("¡Comentario publicado!")
+        # Mostrar el post actualizado en vista detalle
+        post_act = modelo.buscar_post_por_id(POSTS_JSON, id_post)
+        if post_act:
+            console.print()
+            render_post_twitter(post_act)
+    except modelo.ErrorDeDominio as e:
+        mostrar_error(str(e))
+    pausar()
+
+
+def editar_comentario_ui():
+    if not Sesion.activa():
+        mostrar_error("Debe iniciar sesión para editar sus comentarios.")
+        pausar()
+        return
+
+    console.print(Panel.fit("[bold cyan]Editar Comentario[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_magenta"))
+
+    # 1) Mostrar primero mis comentarios (tabla + detalle de sus posts)
+    mis_coms = _recolectar_mis_comentarios()
+    if not mis_coms:
+        console.print("[yellow]No has realizado comentarios para editar.[/yellow]")
+        pausar()
+        return
+    _mostrar_tabla_y_detalle_mis_comentarios(mis_coms)
+
+    # Índice por id_comentario -> lista de id_post (por si hubiera colisiones)
+    idx: Dict[str, List[str]] = {}
+    for c in mis_coms:
+        idx.setdefault(c["id_comentario"], []).append(c["id_post"])
+
+    # 2) Pedir ID del comentario (y post si es necesario)
+    id_com = Prompt.ask("[magenta]ID del comentario a editar[/magenta]").strip()
+    if id_com == "0":
+        console.print("[yellow]Operación cancelada.[/yellow]")
+        pausar()
+        return
+    if id_com not in idx:
+        mostrar_error("El ID de comentario no pertenece a tus comentarios.")
+        pausar()
+        return
+
+    posts_posibles = idx[id_com]
+    id_post = posts_posibles[0]
+    if len(posts_posibles) > 1:
+        id_post = Prompt.ask("[magenta]ID del post que contiene el comentario[/magenta]").strip()
+        if id_post not in posts_posibles:
+            mostrar_error("La combinación de IDs no es válida.")
+            pausar()
+            return
+
+    # Obtener el contenido actual para usarlo como default
+    post = modelo.buscar_post_por_id(POSTS_JSON, id_post)
+    if not post:
+        mostrar_error("No existe un post con ese ID.")
+        pausar()
+        return
+    comentario_actual = None
+    for c in post.get("comentarios") or []:
+        if str(c.get("id_comentario")) == id_com and str(c.get("id_autor")) == str(Sesion.id_autor):
+            comentario_actual = c
+            break
+    if not comentario_actual:
+        mostrar_error("No se encontró el comentario a editar en ese post.")
+        pausar()
+        return
+
+    nuevo_contenido = pedir_obligatorio("Nuevo contenido", default=str(comentario_actual.get("contenido", "")))
+    if not Confirm.ask("[magenta]¿Confirmar actualización del comentario?[/magenta]", default=True):
+        console.print("[yellow]Operación cancelada.[/yellow]")
+        pausar()
+        return
+
+    try:
+        # Se asume que el modelo expone esta operación. Si no existe, mostrar aviso.
+        if hasattr(modelo, "actualizar_comentario_de_post"):
+            modelo.actualizar_comentario_de_post(
+                POSTS_JSON, id_post, id_com, {"contenido": nuevo_contenido}, id_autor_en_sesion=Sesion.id_autor
+            )
+            mostrar_ok("Comentario actualizado.")
+        else:
+            mostrar_error("La edición de comentarios no está disponible en el modelo (falta 'actualizar_comentario_de_post').")
+            pausar()
+            return
+
+        # 4) Mostrar resultado: tabla actualizada + detalle de los posts donde tengo comentarios
+        mis_coms = _recolectar_mis_comentarios()
+        if mis_coms:
+            _mostrar_tabla_y_detalle_mis_comentarios(mis_coms)
+        else:
+            console.print("[yellow]Ya no tienes comentarios propios.[/yellow]")
+        # También mostrar el post afectado
+        post_act = modelo.buscar_post_por_id(POSTS_JSON, id_post)
+        if post_act:
+            console.print()
+            render_post_twitter(post_act)
+    except (modelo.PostNoEncontrado, modelo.AccesoNoAutorizado, modelo.ValidacionError) as e:
+        mostrar_error(str(e))
+    pausar()
+
+
+def menu_comentarios():
+    while True:
+        console.print(
+            Panel(
+                "[bold yellow]1.[/bold yellow].Agregar comentario\n"
+                "[bold yellow]2.[/bold yellow] Editar mi comentario\n"
+                "[bold yellow]3.[/bold yellow] Eliminar mi comentario\n"
+                "[bold yellow]4.[/bold yellow] Volver",
+                title="[bold cyan]Comentarios[/bold cyan]",
+                border_style="bright_blue",
+            )
+        )
+        opcion = Prompt.ask("[magenta]Opción[/magenta]", choices=["1", "2", "3", "4"], show_choices=False)
+        if opcion == "1":
+            agregar_comentario_ui()
+        elif opcion == "2":
+            editar_comentario_ui()
+        elif opcion == "3":
+            eliminar_comentario_ui()
+        elif opcion == "4":
+            return
 
 
 # --- Menú principal ---
