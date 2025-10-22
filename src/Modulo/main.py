@@ -167,6 +167,17 @@ def mostrar_ok(mensaje: str) -> None:
         Panel(f"[bright_green]{mensaje}[/bright_green]", border_style="green", title="[bold green]Éxito[/bold green]")
     )
 
+# NUEVO: Aviso estándar cuando una acción requiere sesión
+def _avisar_requiere_sesion() -> None:
+    console.print(
+        Panel(
+            "[yellow]Sin sesión activa: solo puedes visualizar y listar.[/yellow]\n"
+            "[white]Para crear, editar o eliminar, inicia sesión o regístrate.[/white]",
+            title="[bold cyan]Acción restringida[/bold cyan]",
+            border_style="bright_cyan",
+        )
+    )
+
 
 def input_email() -> str:
     return Prompt.ask("[magenta]Email[/magenta]").strip().lower()
@@ -305,7 +316,7 @@ def ver_post_con_interacciones(id_post: str) -> None:
 
 
 def ver_post_ui() -> None:
-    console.print(Panel.fit("[bold cyan]Ver Publicación[/bold cyan]\n[dim]Use 0 para salir.[/dim]"))
+    console.print(Panel.fit("[bold cyan]Ver Publicación[/bold cyan]"))
     id_post = Prompt.ask("[magenta]ID del post[/magenta]").strip()
     if id_post == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
@@ -482,11 +493,16 @@ def actualizar_autor_ui():
     console.print(
         Panel.fit("[bold cyan]Actualizar Autor[/bold cyan]", border_style="bright_blue")
     )
+    # NUEVO: solo el autor en sesión puede editar su propio perfil
+    if not Sesion.activa():
+        _avisar_requiere_sesion()
+        pausar()
+        return
     try:
-        id_autor = pedir("ID del autor a actualizar")
+        id_autor = Sesion.id_autor  # usar siempre el autor en sesión
         autor_actual = modelo.buscar_autor_por_id(AUTORES_CSV, id_autor)
         if not autor_actual:
-            mostrar_error("No se encontró el autor.")
+            mostrar_error("No se encontró el autor de la sesión.")
             pausar()
             return
 
@@ -517,21 +533,32 @@ def actualizar_autor_ui():
 
 
 def eliminar_autor_ui():
-    console.print(Panel.fit("[bold cyan]Eliminar Autor[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_blue"))
-    id_autor = Prompt.ask("[magenta]ID del autor a eliminar[/magenta]").strip()
-    if id_autor == "0":
+    console.print(Panel.fit("[bold cyan]Eliminar Autor[/bold cyan]", border_style="bright_blue"))
+    # NUEVO: solo el autor en sesión puede eliminar su propia cuenta
+    if not Sesion.activa():
+        _avisar_requiere_sesion()
+        pausar()
+        return
+
+    # Mostrar datos del autor a eliminar (el propio)
+    autor_actual = modelo.buscar_autor_por_id(AUTORES_CSV, Sesion.id_autor)
+    if not autor_actual:
+        mostrar_error("No se encontró el autor de la sesión.")
+        pausar()
+        return
+
+    console.print(Panel(f"Eliminarás tu cuenta: [bold]{autor_actual['nombre_autor']}[/bold] <{autor_actual['email']}>", border_style="red"))
+    if not Confirm.ask("[magenta]¿Seguro que desea eliminar su cuenta?[/magenta]", default=False):
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
-    if not Confirm.ask("[magenta]¿Seguro que desea eliminar al autor?[/magenta]", default=False):
-        console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
-        return
-    ok = modelo.eliminar_autor(AUTORES_CSV, id_autor)
+
+    ok = modelo.eliminar_autor(AUTORES_CSV, Sesion.id_autor)
     if ok:
-        mostrar_ok("Autor eliminado.")
+        mostrar_ok("Cuenta eliminada. La sesión se cerrará.")
+        Sesion.limpiar()
     else:
-        mostrar_error("No se encontró el autor.")
+        mostrar_error("No se pudo eliminar la cuenta.")
     pausar()
 
 
@@ -565,7 +592,7 @@ def menu_autores():
 # --- Menú: Sesión (simplificado según estado) ---
 def menu_sesion():
     if Sesion.activa():
-        estado = f"Conectado como [bold green]{Sesion.nombre_autor}[/bold green] <{Sesion.email}> (ID {Sesion.id_autor}[/bold green])"
+        estado = f"Conectado como [bold green]{Sesion.nombre_autor}[/bold green] <{Sesion.email}> (ID {Sesion.id_autor})"
         console.print(Panel(estado, title="[bold cyan]Sesión[/bold cyan]", border_style="bright_cyan"))
         if Confirm.ask("[magenta]¿Desea cerrar sesión ahora?[/magenta]", default=True):
             Sesion.limpiar()
@@ -717,7 +744,19 @@ def listar_posts_de_autor_ui():
             return
         id_autor = Sesion.id_autor
     else:
+        # Mostrar tabla de autores para guiar la selección
+        autores = modelo.leer_todos_los_autores(AUTORES_CSV)
+        if not autores:
+            console.print("[yellow]No hay autores registrados.[/yellow]")
+            pausar()
+            return
+        console.print(tabla_autores(autores))
+        ids_validos = {a["id_autor"] for a in autores}
         id_autor = Prompt.ask("[magenta]ID del autor[/magenta]").strip()
+        if id_autor not in ids_validos:
+            mostrar_error("El ID de autor no es válido.")
+            pausar()
+            return
 
     posts = modelo.listar_posts_por_autor(POSTS_JSON, id_autor)
     if not posts:
@@ -739,7 +778,15 @@ def listar_posts_de_autor_ui():
 
 
 def buscar_post_por_tag_ui():
-    console.print(Panel.fit("[bold cyan]Buscar Posts por Tag[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_blue"))
+    console.print(Panel.fit("[bold cyan]Buscar Posts por Tag[/bold cyan]\n", border_style="bright_blue"))
+    # Mostrar primero los tags disponibles con su conteo
+    tags_conteo = _recolectar_tags_conteo()
+    if not tags_conteo:
+        console.print("[yellow]Aún no hay tags usados en las publicaciones.[/yellow]")
+        pausar()
+        return
+    console.print(_tabla_tags(tags_conteo))
+
     while True:
         tag = Prompt.ask("[magenta]Tag a buscar[/magenta]").strip()
         if tag == "0":
@@ -798,6 +845,32 @@ def _cargar_todos_los_posts() -> List[Dict[str, Any]]:
         return datos
     except Exception:
         return []
+
+# NUEVO: recolectar tags usados con conteo y tabla para mostrarlos
+def _recolectar_tags_conteo():
+    posts = _cargar_todos_los_posts()
+    contador: Dict[str, int] = {}
+    for p in posts:
+        for t in p.get("tags") or []:
+            t_norm = str(t).strip()
+            if t_norm:
+                contador[t_norm] = contador.get(t_norm, 0) + 1
+    # Orden: más usados primero, luego alfabético
+    return sorted(contador.items(), key=lambda kv: (-kv[1], kv[0].lower()))
+
+def _tabla_tags(tags_conteo) -> Table:
+    tabla = Table(
+        title="Tags disponibles",
+        border_style="blue",
+        show_header=True,
+        header_style="bold magenta",
+        expand=True,
+    )
+    tabla.add_column("Tag", width=28)
+    tabla.add_column("Usos", justify="right", width=6)
+    for tag, cnt in tags_conteo:
+        tabla.add_row(str(tag), str(cnt))
+    return tabla
 
 def _recolectar_mis_comentarios() -> List[Dict[str, Any]]:
     """
@@ -949,7 +1022,7 @@ def eliminar_post_ui():
         pausar()
         return
 
-    console.print(Panel.fit("[bold cyan]Eliminar Publicación[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_blue"))
+    console.print(Panel.fit("[bold cyan]Eliminar Publicación[/bold cyan]\n", border_style="bright_blue"))
 
     # 1) Mostrar primero mis posts (tabla + detalle)
     mis_posts = _obtener_mis_posts()
@@ -995,7 +1068,7 @@ def eliminar_post_ui():
 
 
 def eliminar_comentario_ui():
-    console.print(Panel.fit("[bold cyan]Eliminar Comentario[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_magenta"))
+    console.print(Panel.fit("[bold cyan]Eliminar Comentario[/bold cyan]", border_style="bright_magenta"))
 
     # Requiere sesión para filtrar “mis comentarios”
     if not Sesion.activa():
@@ -1069,7 +1142,7 @@ def agregar_comentario_ui():
         pausar()
         return
 
-    console.print(Panel.fit("[bold cyan]Agregar Comentario[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_magenta"))
+    console.print(Panel.fit("[bold cyan]Agregar Comentario[/bold cyan]", border_style="bright_magenta"))
     id_post = Prompt.ask("[magenta]ID del post a comentar[/magenta]").strip()
     if id_post == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
@@ -1112,7 +1185,7 @@ def editar_comentario_ui():
         pausar()
         return
 
-    console.print(Panel.fit("[bold cyan]Editar Comentario[/bold cyan]\n[dim]Use 0 para salir.[/dim]", border_style="bright_magenta"))
+    console.print(Panel.fit("[bold cyan]Editar Comentario[/bold cyan]", border_style="bright_magenta"))
 
     # 1) Mostrar primero mis comentarios (tabla + detalle de sus posts)
     mis_coms = _recolectar_mis_comentarios()

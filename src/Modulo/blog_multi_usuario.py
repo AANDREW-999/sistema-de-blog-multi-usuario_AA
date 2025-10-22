@@ -602,6 +602,76 @@ def eliminar_comentario_de_post(
     return True
 
 
+def actualizar_comentario_de_post(
+    posts_filepath: str,
+    id_post: str | int,
+    id_comentario: str | int,
+    datos_nuevos: Dict[str, Any],
+    *,
+    id_autor_en_sesion: Optional[str | int] = None,
+) -> Dict[str, Any]:
+    """
+    Actualiza campos permitidos de un comentario dentro de un post.
+
+    Campos permitidos: 'contenido'.
+
+    Reglas de autorización:
+    - Si el comentario tiene 'id_autor' definido y se proporciona 'id_autor_en_sesion',
+      solo se permite actualizar si coinciden (autor del comentario).
+    - Si el comentario no tiene 'id_autor' o no se provee 'id_autor_en_sesion',
+      se permite la edición (la UI ya filtra para editar solo los propios).
+
+    Returns:
+        El comentario actualizado.
+
+    Raises:
+        PostNoEncontrado, ValidacionError, AccesoNoAutorizado
+    """
+    posts = gestor_datos.cargar_datos(posts_filepath)
+    id_post_str = str(id_post)
+    id_com_str = str(id_comentario)
+
+    pidx = -1
+    for i, p in enumerate(posts):
+        if p.get("id_post") == id_post_str:
+            pidx = i
+            break
+    if pidx == -1:
+        raise PostNoEncontrado(f"No existe post con id_post='{id_post_str}'.")
+
+    post = dict(posts[pidx])
+    comentarios: List[Dict[str, Any]] = list(post.get("comentarios") or [])
+
+    cidx = -1
+    for i, c in enumerate(comentarios):
+        if c.get("id_comentario") == id_com_str:
+            cidx = i
+            break
+    if cidx == -1:
+        raise ValidacionError("No se encontró el comentario indicado.")
+
+    comentario = dict(comentarios[cidx])
+
+    # Autorización (si ambas partes están presentes)
+    if comentario.get("id_autor") and id_autor_en_sesion is not None:
+        if str(comentario.get("id_autor")) != str(id_autor_en_sesion):
+            raise AccesoNoAutorizado("No puedes editar comentarios de otros autores.")
+
+    # Validar y aplicar cambios permitidos
+    if "contenido" in datos_nuevos:
+        nuevo_contenido = str(datos_nuevos["contenido"]) if datos_nuevos["contenido"] is not None else ""
+        if not _es_str_no_vacio(nuevo_contenido):
+            raise ValidacionError("El contenido del comentario no puede estar vacío.")
+        comentario["contenido"] = nuevo_contenido.strip()
+
+    # Persistir
+    comentarios[cidx] = comentario
+    post["comentarios"] = comentarios
+    posts[pidx] = post
+    gestor_datos.guardar_datos(posts_filepath, posts)
+    return comentario
+
+
 # =========================
 # API pública del modelo
 # =========================
@@ -633,4 +703,5 @@ __all__ = [
     "agregar_comentario_a_post",
     "listar_comentarios_de_post",
     "eliminar_comentario_de_post",
+    "actualizar_comentario_de_post",
 ]
