@@ -1,7 +1,84 @@
 [project]
 name = "sistema-de-blog-multi-usuario-aa"
 version = "0.1.0"
-description = "Add your description here"
+description = "Sistema de Blog Multi-usuario (CLI con Rich)"
+authors = [
+    { name = "Andres Gonzalez", email = "andresfelipegonzalez5a@gmail.com" }
+]
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "pytest>=8.4.2",
+    "rich>=14.2.0",
+    "ruff>=0.14.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "rich>=14.2.0",
+    "ruff>=0.14.1",
+]
+[project.urls]
+homepage = "https://github.com/AANDREW-999/sistema-de-blog-multi-usuario_AA.git"
+repository = "https://github.com/AANDREW-999/sistema-de-blog-multi-usuario_AA.git"
+
+[tool.pytest.ini_options]
+# Directorios de búsqueda de pruebas. Por defecto es el directorio actual.
+# Aquí se especifica que solo busque en el directorio 'tests'.
+testpaths = "tests"
+
+# Opciones de verbosidad (más detalles en la salida).
+addopts = "-v"
+
+# Ignora directorios específicos.
+# Por ejemplo, si usas entornos virtuales dentro del proyecto.
+norecursedirs = [
+    ".git",
+    "venv",
+    ".venv"
+]
+
+# Puedes definir tus propios marcadores para agrupar pruebas.
+# Útil para ejecutar solo un subconjunto de pruebas.
+# Por ejemplo, `pytest -m "slow"` para ejecutar solo las pruebas lentas.
+markers = [
+    "slow: marca las pruebas que tardan mucho en ejecutarse",
+    "integration: marca las pruebas de integración"
+]
+
+[tool.ruff]
+# Define la versión mínima de Python que tu código soporta.
+# Ayuda a ruff a aplicar reglas específicas de cada versión.
+target-version = "py310" # Cambia esto a tu versión de Python
+
+[tool.ruff.lint]
+# E = Errores de pycodestyle
+# F = Errores de PyFlakes (lógica)
+# I = Reglas para ordenar imports (isort)
+# W = Advertencias de pycodestyle
+# PLC = Convenciones de Pylint
+# PLR = Refactorizaciones de Pylint
+
+# En Ruff, las reglas que aplican el estándar PEP 8
+# se activan principalmente con los códigos E y W,
+# que provienen de la herramienta pycodestyle.
+
+select = ["E", "F", "I", "W", "PLC", "PLR"]
+
+# 'Ignore' desactiva reglas específicas si son muy molestas.
+# Por ejemplo, 'E501' es la regla de "línea demasiado larga".
+ignore = []
+
+# Puedes añadir aquí reglas que no se puedan arreglar automáticamente.
+unfixable = []
+
+[tool.ruff.format]
+# Configuración del formateador (opcional, pero recomendado).
+# Puedes elegir un estilo de comillas o dejar que ruff decida.
+quote-style = "double"
+
+[tool.ruff.lint.pydocstyle]
+# Obliga a que todos los métodos y funciones PÚBLICOS tengan un docstring.
+# No lo exige para métodos privados que empiezan con '_'.
+convention = "google" # Puedes elegir entre "google", "numpy", o "pep257"

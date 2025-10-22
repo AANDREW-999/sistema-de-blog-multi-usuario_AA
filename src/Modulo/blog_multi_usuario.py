@@ -1,0 +1,632 @@
+# -*- coding: utf-8 -*-
+"""
+Módulo de Lógica de Negocio (Modelo) — Sistema de Blog Multi-usuario.
+
+Responsabilidades:
+- Definir entidades conceptuales (Autor, Post, Comentario) y sus validaciones.
+- Exponer servicios de dominio (funciones puras) para CRUD de Autores y Posts,
+  búsqueda por tags y gestión de comentarios.
+- Aplicar reglas de negocio y autorización (solo el dueño puede modificar/eliminar su post).
+- Delegar la persistencia en 'gestor_datos' (sin realizar I/O directo aquí).
+
+Convenciones de datos persistidos:
+- Autores (CSV): {'id_autor': str, 'nombre_autor': str, 'email': str}
+- Posts (JSON): {
+    'id_post': str,
+    'id_autor': str,
+    'titulo': str,
+    'contenido': str,
+    'fecha_publicacion': 'YYYY-MM-DD HH:MM:SS',
+    'tags': List[str],           # en minúsculas, sin duplicados
+    'comentarios': [             # opcional, lista anidada
+        {
+            'id_comentario': str,
+            'autor': str,        # nombre a mostrar del autor del comentario
+            'contenido': str,
+            'fecha': 'YYYY-MM-DD HH:MM:SS',
+            'id_autor': str|""   # opcional, si el comentarista es un autor registrado
+        },
+        ...
+    ]
+}
+
+Este módulo utiliza 'gestor_datos' para cargar/guardar listas desde rutas de archivo
+(autores CSV y posts JSON), siguiendo la guía del archivo de ejemplo del profesor.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional, Sequence
+from datetime import datetime
+import re
+
+import gestor_datos
+
+
+# =========================
+# Excepciones de dominio
+# =========================
+
+class ErrorDeDominio(Exception):
+    """Excepción base para errores de reglas de negocio."""
+
+
+class ValidacionError(ErrorDeDominio):
+    """Datos inválidos o formato incorrecto."""
+
+
+class EmailDuplicado(ErrorDeDominio):
+    """El email ya está registrado en otro autor."""
+
+
+class AutorNoEncontrado(ErrorDeDominio):
+    """No existe el autor solicitado."""
+
+
+class PostNoEncontrado(ErrorDeDominio):
+    """No existe el post solicitado."""
+
+
+class AccesoNoAutorizado(ErrorDeDominio):
+    """El usuario actual no puede realizar la acción solicitada."""
+
+
+# =========================
+# Helpers y validaciones
+# =========================
+
+_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
+
+def _ahora_str() -> str:
+    """Devuelve fecha y hora actual en formato 'YYYY-MM-DD HH:MM:SS'."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _es_str_no_vacio(valor: Any) -> bool:
+    return isinstance(valor, str) and valor.strip() != ""
+
+
+def _validar_email(email: str) -> None:
+    if not _es_str_no_vacio(email) or not _EMAIL_RE.match(email):
+        raise ValidacionError("El email no tiene un formato válido.")
+
+
+def _normalizar_tags(tags: Sequence[str]) -> List[str]:
+    """
+    Limpia, normaliza (minúsculas) y quita duplicados preservando orden.
+    """
+    vistos = set()
+    normalizados: List[str] = []
+    for t in tags:
+        if not isinstance(t, str):
+            raise ValidacionError("Todos los tags deben ser cadenas de texto.")
+        tt = t.strip().lower()
+        if tt and tt not in vistos:
+            vistos.add(tt)
+            normalizados.append(tt)
+    return normalizados
+
+
+def _parsear_tags(tags: Any) -> List[str]:
+    """
+    Admite:
+    - lista/tupla de strings
+    - string con tags separados por coma
+    """
+    if tags is None:
+        return []
+    if isinstance(tags, (list, tuple)):
+        return _normalizar_tags(list(tags))
+    if isinstance(tags, str):
+        separados = [p.strip() for p in tags.split(",")]
+        return _normalizar_tags(separados)
+    raise ValidacionError("Formato de 'tags' no soportado. Use lista o cadena separada por comas.")
+
+
+def _generar_id(items: List[Dict[str, Any]], clave_id: str) -> int:
+    """
+    Genera un ID entero autoincremental a partir de una lista de diccionarios.
+    Si la lista está vacía, retorna 1.
+    """
+    if not items:
+        return 1
+    try:
+        max_id = max(int(it.get(clave_id, 0)) for it in items)
+    except ValueError:
+        max_id = 0
+    return max_id + 1
+
+
+def _generar_id_comentario(post: Dict[str, Any]) -> int:
+    comentarios = post.get("comentarios") or []
+    if not comentarios:
+        return 1
+    try:
+        max_id = max(int(c.get("id_comentario", 0)) for c in comentarios)
+    except ValueError:
+        max_id = 0
+    return max_id + 1
+
+
+# =========================
+# Autores (CSV)
+# =========================
+
+def crear_autor(autores_filepath: str, nombre_autor: str, email: str) -> Dict[str, Any]:
+    """
+    (CREATE) Crea un nuevo autor. Valida formato del email y unicidad.
+
+    Args:
+        autores_filepath: Ruta al CSV de autores.
+        nombre_autor: Nombre a mostrar del autor.
+        email: Correo electrónico único.
+
+    Returns:
+        El diccionario del autor creado.
+
+    Raises:
+        ValidacionError: Si faltan datos o el formato es inválido.
+        EmailDuplicado: Si el email ya existe.
+    """
+    if not _es_str_no_vacio(nombre_autor):
+        raise ValidacionError("El nombre del autor es obligatorio.")
+    _validar_email(email)
+
+    autores = gestor_datos.cargar_datos(autores_filepath)
+
+    if any(a.get("email", "").strip().lower() == email.strip().lower() for a in autores):
+        raise EmailDuplicado(f"El email '{email}' ya se encuentra registrado.")
+
+    nuevo_id = _generar_id(autores, "id_autor")
+    autor = {
+        "id_autor": str(nuevo_id),
+        "nombre_autor": nombre_autor.strip(),
+        "email": email.strip().lower(),
+    }
+    autores.append(autor)
+    gestor_datos.guardar_datos(autores_filepath, autores)
+    return autor
+
+
+def leer_todos_los_autores(autores_filepath: str) -> List[Dict[str, Any]]:
+    """
+    (READ) Devuelve la lista completa de autores.
+    """
+    return gestor_datos.cargar_datos(autores_filepath)
+
+
+def buscar_autor_por_id(autores_filepath: str, id_autor: str | int) -> Optional[Dict[str, Any]]:
+    """
+    Busca un autor por su ID.
+    """
+    autores = gestor_datos.cargar_datos(autores_filepath)
+    id_str = str(id_autor)
+    for a in autores:
+        if a.get("id_autor") == id_str:
+            return a
+    return None
+
+
+def buscar_autor_por_email(autores_filepath: str, email: str) -> Optional[Dict[str, Any]]:
+    """
+    Busca un autor por su email (case-insensitive).
+    """
+    _validar_email(email)
+    autores = gestor_datos.cargar_datos(autores_filepath)
+    email_l = email.strip().lower()
+    for a in autores:
+        if a.get("email", "").strip().lower() == email_l:
+            return a
+    return None
+
+
+def actualizar_autor(
+    autores_filepath: str,
+    id_autor: str | int,
+    datos_nuevos: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    (UPDATE) Actualiza campos de un autor.
+
+    Reglas:
+    - Si se cambia el email, validar formato y unicidad.
+    - Convierte todos los valores a str para consistencia.
+
+    Raises:
+        AutorNoEncontrado, EmailDuplicado, ValidacionError
+    """
+    autores = gestor_datos.cargar_datos(autores_filepath)
+    id_str = str(id_autor)
+
+    idx = -1
+    for i, a in enumerate(autores):
+        if a.get("id_autor") == id_str:
+            idx = i
+            break
+    if idx == -1:
+        raise AutorNoEncontrado(f"No existe autor con id_autor='{id_str}'.")
+
+    autor = dict(autores[idx])  # copia
+
+    if "nombre_autor" in datos_nuevos:
+        if not _es_str_no_vacio(datos_nuevos["nombre_autor"]):
+            raise ValidacionError("El nombre del autor no puede estar vacío.")
+        autor["nombre_autor"] = str(datos_nuevos["nombre_autor"]).strip()
+
+    if "email" in datos_nuevos:
+        nuevo_email = str(datos_nuevos["email"]).strip().lower()
+        _validar_email(nuevo_email)
+        # verificar unicidad
+        for a in autores:
+            if a.get("id_autor") != id_str and a.get("email", "").strip().lower() == nuevo_email:
+                raise EmailDuplicado(f"El email '{nuevo_email}' ya está en uso por otro autor.")
+        autor["email"] = nuevo_email
+
+    autores[idx] = autor
+    gestor_datos.guardar_datos(autores_filepath, autores)
+    return autor
+
+
+def eliminar_autor(autores_filepath: str, id_autor: str | int) -> bool:
+    """
+    (DELETE) Elimina un autor por su ID.
+
+    Returns:
+        True si se eliminó, False si no existía.
+    """
+    autores = gestor_datos.cargar_datos(autores_filepath)
+    id_str = str(id_autor)
+    original = len(autores)
+    autores = [a for a in autores if a.get("id_autor") != id_str]
+    if len(autores) < original:
+        gestor_datos.guardar_datos(autores_filepath, autores)
+        return True
+    return False
+
+
+# =========================
+# Posts (JSON)
+# =========================
+
+def crear_post(
+    posts_filepath: str,
+    id_autor_en_sesion: str | int,
+    titulo: str,
+    contenido: str,
+    tags: Any,
+    *,
+    validar_autor_en: Optional[str] = None,
+    fecha_publicacion: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Crea una nueva publicación asociada al autor en sesión.
+
+    Args:
+        posts_filepath: Ruta al JSON de publicaciones.
+        id_autor_en_sesion: ID del autor autenticado (simulado).
+        titulo: Título del post.
+        contenido: Contenido del post.
+        tags: Lista/tupla de strings o cadena separada por comas.
+        validar_autor_en: (opcional) Ruta al CSV de autores para validar existencia del autor.
+        fecha_publicacion: (opcional) Fecha personalizada en formato 'YYYY-MM-DD HH:MM:SS'.
+
+    Returns:
+        El post creado.
+
+    Raises:
+        AutorNoEncontrado, ValidacionError
+    """
+    if not _es_str_no_vacio(titulo):
+        raise ValidacionError("El título es obligatorio.")
+    if not _es_str_no_vacio(contenido):
+        raise ValidacionError("El contenido es obligatorio.")
+
+    id_autor_str = str(id_autor_en_sesion)
+
+    if validar_autor_en:
+        autor = buscar_autor_por_id(validar_autor_en, id_autor_str)
+        if not autor:
+            raise AutorNoEncontrado(f"No existe autor con id_autor='{id_autor_str}'.")
+
+    posts = gestor_datos.cargar_datos(posts_filepath)
+    nuevo_id = _generar_id(posts, "id_post")
+
+    post = {
+        "id_post": str(nuevo_id),
+        "id_autor": id_autor_str,
+        "titulo": titulo.strip(),
+        "contenido": contenido.strip(),
+        "fecha_publicacion": fecha_publicacion.strip() if _es_str_no_vacio(fecha_publicacion or "") else _ahora_str(),
+        "tags": _parsear_tags(tags),
+        "comentarios": [],
+    }
+    posts.append(post)
+    gestor_datos.guardar_datos(posts_filepath, posts)
+    return post
+
+
+def leer_todos_los_posts(posts_filepath: str) -> List[Dict[str, Any]]:
+    """
+    Devuelve la lista completa de publicaciones.
+    """
+    return gestor_datos.cargar_datos(posts_filepath)
+
+
+def listar_posts_por_autor(posts_filepath: str, id_autor: str | int) -> List[Dict[str, Any]]:
+    """
+    Lista todas las publicaciones de un autor específico.
+    """
+    id_str = str(id_autor)
+    posts = gestor_datos.cargar_datos(posts_filepath)
+    return [p for p in posts if p.get("id_autor") == id_str]
+
+
+def buscar_posts_por_tag(posts_filepath: str, tag: str) -> List[Dict[str, Any]]:
+    """
+    Busca publicaciones que contengan el tag indicado (case-insensitive).
+    """
+    if not _es_str_no_vacio(tag):
+        raise ValidacionError("El tag de búsqueda no puede estar vacío.")
+    t = tag.strip().lower()
+    posts = gestor_datos.cargar_datos(posts_filepath)
+    return [p for p in posts if t in [tt.lower() for tt in (p.get("tags") or [])]]
+
+
+def buscar_post_por_id(posts_filepath: str, id_post: str | int) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene un post por su ID o None si no existe.
+    """
+    posts = gestor_datos.cargar_datos(posts_filepath)
+    id_str = str(id_post)
+    for p in posts:
+        if p.get("id_post") == id_str:
+            return p
+    return None
+
+
+def actualizar_post(
+    posts_filepath: str,
+    id_post: str | int,
+    id_autor_en_sesion: str | int,
+    datos_nuevos: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Actualiza un post. Solo puede hacerlo su dueño.
+
+    Campos permitidos a actualizar: 'titulo', 'contenido', 'tags'.
+    No se permite cambiar 'id_autor', 'id_post' ni 'fecha_publicacion'.
+
+    Raises:
+        PostNoEncontrado, AccesoNoAutorizado, ValidacionError
+    """
+    posts = gestor_datos.cargar_datos(posts_filepath)
+    id_post_str = str(id_post)
+    id_autor_sesion_str = str(id_autor_en_sesion)
+
+    idx = -1
+    for i, p in enumerate(posts):
+        if p.get("id_post") == id_post_str:
+            idx = i
+            break
+    if idx == -1:
+        raise PostNoEncontrado(f"No existe post con id_post='{id_post_str}'.")
+
+    post = dict(posts[idx])  # copia
+    if post.get("id_autor") != id_autor_sesion_str:
+        raise AccesoNoAutorizado("No puedes modificar publicaciones de otros autores.")
+
+    if "titulo" in datos_nuevos:
+        if not _es_str_no_vacio(datos_nuevos["titulo"]):
+            raise ValidacionError("El título no puede estar vacío.")
+        post["titulo"] = str(datos_nuevos["titulo"]).strip()
+
+    if "contenido" in datos_nuevos:
+        if not _es_str_no_vacio(datos_nuevos["contenido"]):
+            raise ValidacionError("El contenido no puede estar vacío.")
+        post["contenido"] = str(datos_nuevos["contenido"]).strip()
+
+    if "tags" in datos_nuevos:
+        post["tags"] = _parsear_tags(datos_nuevos["tags"])
+
+    posts[idx] = post
+    gestor_datos.guardar_datos(posts_filepath, posts)
+    return post
+
+
+def eliminar_post(
+    posts_filepath: str,
+    id_post: str | int,
+    id_autor_en_sesion: str | int,
+) -> bool:
+    """
+    Elimina un post si pertenece al autor en sesión.
+
+    Returns:
+        True si se eliminó, False si no existía.
+
+    Raises:
+        AccesoNoAutorizado si el post existe pero no pertenece al autor en sesión.
+    """
+    posts = gestor_datos.cargar_datos(posts_filepath)
+    id_post_str = str(id_post)
+    id_autor_sesion_str = str(id_autor_en_sesion)
+
+    post = None
+    for p in posts:
+        if p.get("id_post") == id_post_str:
+            post = p
+            break
+
+    if post is None:
+        return False
+
+    if post.get("id_autor") != id_autor_sesion_str:
+        raise AccesoNoAutorizado("No puedes eliminar publicaciones de otros autores.")
+
+    posts = [p for p in posts if p.get("id_post") != id_post_str]
+    gestor_datos.guardar_datos(posts_filepath, posts)
+    return True
+
+
+# =========================
+# Comentarios (reto)
+# =========================
+
+def agregar_comentario_a_post(
+    posts_filepath: str,
+    id_post: str | int,
+    autor: str,
+    contenido: str,
+    *,
+    id_autor: Optional[str | int] = None,
+) -> Dict[str, Any]:
+    """
+    Agrega un comentario a un post.
+
+    Args:
+        posts_filepath: Ruta al JSON de posts.
+        id_post: ID del post a comentar.
+        autor: Nombre a mostrar del comentarista.
+        contenido: Texto del comentario.
+        id_autor: (opcional) ID del autor si el comentarista está registrado.
+
+    Returns:
+        El comentario creado.
+
+    Raises:
+        PostNoEncontrado, ValidacionError
+    """
+    if not _es_str_no_vacio(autor):
+        raise ValidacionError("El autor del comentario es obligatorio.")
+    if not _es_str_no_vacio(contenido):
+        raise ValidacionError("El contenido del comentario es obligatorio.")
+
+    posts = gestor_datos.cargar_datos(posts_filepath)
+    id_post_str = str(id_post)
+
+    idx = -1
+    for i, p in enumerate(posts):
+        if p.get("id_post") == id_post_str:
+            idx = i
+            break
+    if idx == -1:
+        raise PostNoEncontrado(f"No existe post con id_post='{id_post_str}'.")
+
+    post = dict(posts[idx])  # copia
+    comentarios: List[Dict[str, Any]] = list(post.get("comentarios") or [])
+    nuevo_id = _generar_id_comentario(post)
+    comentario = {
+        "id_comentario": str(nuevo_id),
+        "autor": autor.strip(),
+        "contenido": contenido.strip(),
+        "fecha": _ahora_str(),
+        "id_autor": str(id_autor) if id_autor is not None else "",
+    }
+    comentarios.append(comentario)
+    post["comentarios"] = comentarios
+
+    posts[idx] = post
+    gestor_datos.guardar_datos(posts_filepath, posts)
+    return comentario
+
+
+def listar_comentarios_de_post(posts_filepath: str, id_post: str | int) -> List[Dict[str, Any]]:
+    """
+    Lista todos los comentarios de un post.
+    """
+    post = buscar_post_por_id(posts_filepath, id_post)
+    if not post:
+        raise PostNoEncontrado(f"No existe post con id_post='{id_post}'.")
+    return list(post.get("comentarios") or [])
+
+
+def eliminar_comentario_de_post(
+    posts_filepath: str,
+    id_post: str | int,
+    id_comentario: str | int,
+    *,
+    id_autor_en_sesion: Optional[str | int] = None,
+) -> bool:
+    """
+    Elimina un comentario por su ID dentro de un post.
+
+    Reglas de autorización:
+    - Si el comentario tiene 'id_autor' definido y se proporciona 'id_autor_en_sesion',
+      solo se permite eliminar si coinciden (autor del comentario).
+    - Si el comentario no tiene 'id_autor' o no se provee 'id_autor_en_sesion',
+      se permite la eliminación (delegar control a la vista/controlador si se desea).
+
+    Returns:
+        True si se eliminó, False si no existía.
+
+    Raises:
+        PostNoEncontrado, AccesoNoAutorizado
+    """
+    posts = gestor_datos.cargar_datos(posts_filepath)
+    id_post_str = str(id_post)
+    id_com_str = str(id_comentario)
+
+    pidx = -1
+    for i, p in enumerate(posts):
+        if p.get("id_post") == id_post_str:
+            pidx = i
+            break
+    if pidx == -1:
+        raise PostNoEncontrado(f"No existe post con id_post='{id_post_str}'.")
+
+    post = dict(posts[pidx])
+    comentarios: List[Dict[str, Any]] = list(post.get("comentarios") or [])
+
+    c_encontrado = None
+    for c in comentarios:
+        if c.get("id_comentario") == id_com_str:
+            c_encontrado = c
+            break
+
+    if c_encontrado is None:
+        return False
+
+    if c_encontrado.get("id_autor") and id_autor_en_sesion is not None:
+        if str(c_encontrado.get("id_autor")) != str(id_autor_en_sesion):
+            raise AccesoNoAutorizado("No puedes eliminar comentarios de otros autores.")
+
+    comentarios = [c for c in comentarios if c.get("id_comentario") != id_com_str]
+    post["comentarios"] = comentarios
+    posts[pidx] = post
+    gestor_datos.guardar_datos(posts_filepath, posts)
+    return True
+
+
+# =========================
+# API pública del modelo
+# =========================
+
+__all__ = [
+    # Excepciones
+    "ErrorDeDominio",
+    "ValidacionError",
+    "EmailDuplicado",
+    "AutorNoEncontrado",
+    "PostNoEncontrado",
+    "AccesoNoAutorizado",
+    # Autores
+    "crear_autor",
+    "leer_todos_los_autores",
+    "buscar_autor_por_id",
+    "buscar_autor_por_email",
+    "actualizar_autor",
+    "eliminar_autor",
+    # Posts
+    "crear_post",
+    "leer_todos_los_posts",
+    "listar_posts_por_autor",
+    "buscar_posts_por_tag",
+    "buscar_post_por_id",
+    "actualizar_post",
+    "eliminar_post",
+    # Comentarios
+    "agregar_comentario_a_post",
+    "listar_comentarios_de_post",
+    "eliminar_comentario_de_post",
+]
