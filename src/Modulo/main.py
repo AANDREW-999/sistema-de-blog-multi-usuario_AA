@@ -13,7 +13,9 @@ Este módulo orquesta la interacción de usuario y delega:
 - Persistencia en gestor_datos (Controlador/I/O)
 """
 
-from __future__ import annotations  # Permite posponer evaluación de anotaciones de tipos
+from __future__ import (
+    annotations,  # Permite posponer evaluación de anotaciones de tipos
+)
 
 # NUEVO: hashing de contraseñas (en memoria)
 import hashlib  # Hashing (SHA-256) para proteger contraseñas
@@ -1656,7 +1658,7 @@ def menu_comentarios() -> None:
     while True:
         console.print(
             Panel(
-                "[bold yellow]1.[/bold yellow].Agregar comentario\n"
+                "[bold yellow]1.[/bold yellow]Agregar comentario\n"
                 "[bold yellow]2.[/bold yellow] Editar mi comentario\n"
                 "[bold yellow]3.[/bold yellow] Eliminar mi comentario\n"
                 "[bold yellow]4.[/bold yellow] Volver",
