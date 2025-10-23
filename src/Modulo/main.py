@@ -13,37 +13,49 @@ Este módulo orquesta la interacción de usuario y delega:
 - Persistencia en gestor_datos (Controlador/I/O)
 """
 
-from __future__ import annotations
+from __future__ import annotations  # Permite posponer evaluación de anotaciones de tipos
 
 # NUEVO: hashing de contraseñas (en memoria)
-import hashlib
-import os
-import secrets
-from typing import Any, Dict, List, Optional
+import hashlib  # Hashing (SHA-256) para proteger contraseñas
+import os  # Manejo de rutas y sistema de archivos
+import secrets  # Generación de valores aleatorios seguros (salts)
+from typing import Any, Dict, List, Optional  # Tipos auxiliares para anotar firmas
 
-import blog_multi_usuario as modelo
-import gestor_datos
+import blog_multi_usuario as modelo  # Lógica de negocio (modelo del dominio)
+import gestor_datos  # Persistencia (lectura/escritura CSV/JSON)
 
 # --- Rich ---
-from rich.console import Console, Group
-from rich.panel import Panel
-from rich.prompt import Confirm, Prompt
-from rich.table import Table
-from rich.text import Text
+from rich.console import Console, Group  # Consola y agrupador de componentes Rich
+from rich.panel import Panel  # Paneles con bordes y títulos
+from rich.prompt import Confirm, Prompt  # Prompts interactivos (texto y confirmación)
+from rich.table import Table  # Tablas con estilos y columnas
+from rich.text import Text  # Texto con estilos
 
 console = Console()
 
 
 # --- Cancelación de formularios ---
-class Cancelado(Exception):
-    pass
+Cancelado = Exception
 
 
 def pedir(mensaje: str, *, password: bool = False, default: Optional[str] = None, to_lower: bool = False) -> str:
     """
-    Envuelve Prompt.ask y permite cancelar con '0'.
-    Garantiza devolver siempre una cadena (nunca None), incluso si el usuario
-    solo presiona Enter sin default.
+    Solicita un valor al usuario (Prompt) con opción de cancelar.
+
+    Si el usuario ingresa "0" se cancela la operación mediante la excepción Cancelado.
+    Nunca retorna None; siempre entrega cadena (posiblemente vacía si hay default).
+
+    Args:
+        mensaje: Texto a mostrar en el prompt.
+        password: Si True, oculta la entrada del usuario.
+        default: Valor por defecto si el usuario solo presiona Enter.
+        to_lower: Si True, retorna la cadena en minúsculas.
+
+    Returns:
+        str: Valor ingresado por el usuario (no None).
+
+    Raises:
+        Cancelado: Cuando el usuario ingresa "0".
     """
     etiqueta = f"[magenta]{mensaje}[/magenta] [dim](0 para salir)[/dim]"
     if default is None:
@@ -60,6 +72,15 @@ def pedir(mensaje: str, *, password: bool = False, default: Optional[str] = None
 
 
 def mostrar_advertencia(mensaje: str) -> None:
+    """
+    Muestra un panel de advertencia estilizado.
+
+    Args:
+        mensaje: Texto de la advertencia a mostrar.
+
+    Returns:
+        None
+    """
     console.print(Panel(f"[yellow]{mensaje}[/yellow]", border_style="yellow", title="[bold yellow]Aviso[/bold yellow]"))
 
 
@@ -67,7 +88,19 @@ def pedir_obligatorio(
     mensaje: str, *, password: bool = False, default: Optional[str] = None, to_lower: bool = False
 ) -> str:
     """
-    Igual que pedir, pero obliga a que el resultado no sea vacío.
+    Solicita un valor no vacío; reintenta si el usuario deja el campo vacío.
+
+    Args:
+        mensaje: Texto del prompt.
+        password: Si True, oculta la entrada.
+        default: Valor por defecto si el usuario solo presiona Enter.
+        to_lower: Si True, retorna el valor en minúsculas.
+
+    Returns:
+        str: Cadena no vacía ingresada por el usuario.
+
+    Raises:
+        Cancelado: Cuando el usuario ingresa "0".
     """
     while True:
         valor = pedir(mensaje, password=password, default=default, to_lower=to_lower)
@@ -76,21 +109,37 @@ def pedir_obligatorio(
         mostrar_advertencia("El campo no puede estar vacío. Inténtalo de nuevo.")
 
 
-# NUEVO: Gestión simple de contraseñas en memoria (no persistente)
-# PASSWORD_STORE: Dict[str, str] = {}  # email -> "salt$hash"
-# def has_password(email: str) -> bool:
-#     return email in PASSWORD_STORE
-# def set_password_for_email(email: str, pwd: str) -> None:
-#     PASSWORD_STORE[email] = _hash_password(pwd)
-
 def _hash_password(pwd: str, salt: Optional[str] = None) -> str:
+    """
+    Genera un hash seguro (salt + SHA-256) para una contraseña.
+
+    Formato devuelto: "<salt>$<hash_hex>".
+
+    Args:
+        pwd: Contraseña en texto plano.
+        salt: Salt hexadecimal opcional; si no se provee, se genera.
+
+    Returns:
+        str: Cadena con el salt y el hash concatenados.
+    """
     if salt is None:
         salt = secrets.token_hex(16)
     h = hashlib.sha256()
     h.update((salt + pwd).encode("utf-8"))
     return f"{salt}${h.hexdigest()}"
 
+
 def _verify_password(stored: str, pwd: str) -> bool:
+    """
+    Verifica una contraseña comparándola con un hash almacenado.
+
+    Args:
+        stored: Valor almacenado con formato "<salt>$<hash_hex>".
+        pwd: Contraseña en texto plano a validar.
+
+    Returns:
+        bool: True si coincide; False en caso contrario.
+    """
     try:
         salt, _ = stored.split("$", 1)
     except ValueError:
@@ -99,6 +148,18 @@ def _verify_password(stored: str, pwd: str) -> bool:
 
 
 def pedir_password_nuevo() -> str:
+    """
+    Solicita una nueva contraseña y su confirmación, validando reglas mínimas.
+
+    Reglas: las contraseñas deben coincidir y tener longitud mínima de 4.
+
+    Returns:
+        str: Contraseña válida ingresada por el usuario.
+
+    Raises:
+        modelo.ValidacionError: Si no coincide o no cumple la longitud mínima.
+        Cancelado: Si el usuario cancela con "0".
+    """
     pwd1 = pedir("Contraseña", password=True)
     pwd2 = pedir("Confirmar contraseña", password=True)
     if pwd1 != pwd2:
@@ -118,22 +179,52 @@ POSTS_JSON = os.path.join(DIRECTORIO_DATOS, "posts.json")
 
 # --- Estado de sesión (simulado) ---
 class Sesion:
+    """
+    Gestiona el estado de la sesión del usuario actual.
+
+    Atributos de clase:
+        id_autor (Optional[str]): ID del autor autenticado.
+        nombre_autor (Optional[str]): Nombre visible del autor.
+        email (Optional[str]): Correo electrónico del autor.
+    """
+
     id_autor: Optional[str] = None
     nombre_autor: Optional[str] = None
     email: Optional[str] = None
 
     @classmethod
     def activa(cls) -> bool:
+        """
+        Indica si existe una sesión activa.
+
+        Returns:
+            bool: True si hay un autor en sesión; False en caso contrario.
+        """
         return cls.id_autor is not None
 
     @classmethod
     def establecer(cls, autor: Dict[str, Any]) -> None:
+        """
+        Establece la sesión con los datos del autor autenticado.
+
+        Args:
+            autor: Diccionario con llaves 'id_autor', 'nombre_autor' y 'email'.
+
+        Returns:
+            None
+        """
         cls.id_autor = autor.get("id_autor")
         cls.nombre_autor = autor.get("nombre_autor")
         cls.email = autor.get("email")
 
     @classmethod
     def limpiar(cls) -> None:
+        """
+        Limpia el estado de la sesión (cierra sesión).
+
+        Returns:
+            None
+        """
         cls.id_autor = None
         cls.nombre_autor = None
         cls.email = None
@@ -141,11 +232,23 @@ class Sesion:
 
 # --- Helpers UI ---
 def init_archivos() -> None:
+    """
+    Asegura que los archivos de datos existan e inicializa su contenido si faltan.
+
+    Returns:
+        None
+    """
     gestor_datos.inicializar_archivo(AUTORES_CSV)
     gestor_datos.inicializar_archivo(POSTS_JSON)
 
 
 def banner() -> None:
+    """
+    Muestra el banner principal de la aplicación.
+
+    Returns:
+        None
+    """
     console.print(
         Panel.fit(
             "[bold cyan]Sistema de Blog Multi-usuario[/bold cyan]",
@@ -154,21 +257,51 @@ def banner() -> None:
     )
 
 
-def pausar():
+def pausar() -> None:
+    """
+    Pausa la ejecución esperando que el usuario presione Enter.
+
+    Returns:
+        None
+    """
     console.input("[bold blue]Dale Enter para continuar...[/bold blue]")
 
 
 def mostrar_error(mensaje: str) -> None:
+    """
+    Muestra un panel de error estilizado.
+
+    Args:
+        mensaje: Descripción del error.
+
+    Returns:
+        None
+    """
     console.print(Panel(f"[bright_red]{mensaje}[/bright_red]", border_style="red", title="[bold red]Error[/bold red]"))
 
 
 def mostrar_ok(mensaje: str) -> None:
+    """
+    Muestra un panel de éxito/confirmación.
+
+    Args:
+        mensaje: Mensaje de confirmación.
+
+    Returns:
+        None
+    """
     console.print(
         Panel(f"[bright_green]{mensaje}[/bright_green]", border_style="green", title="[bold green]Éxito[/bold green]")
     )
 
-# NUEVO: Aviso estándar cuando una acción requiere sesión
+
 def _avisar_requiere_sesion() -> None:
+    """
+    Muestra un aviso estándar indicando que la acción requiere sesión activa.
+
+    Returns:
+        None
+    """
     console.print(
         Panel(
             "[yellow]Sin sesión activa: solo puedes visualizar y listar.[/yellow]\n"
@@ -180,21 +313,51 @@ def _avisar_requiere_sesion() -> None:
 
 
 def input_email() -> str:
+    """
+    Solicita un email y lo retorna normalizado en minúsculas.
+
+    Returns:
+        str: Correo electrónico ingresado sin espacios y en minúsculas.
+    """
     return Prompt.ask("[magenta]Email[/magenta]").strip().lower()
 
 
 def cargar_autores_indexado() -> Dict[str, Dict[str, Any]]:
+    """
+    Carga todos los autores y retorna un índice por id_autor.
+
+    Returns:
+        Dict[str, Dict[str, Any]]: Mapa id_autor -> autor.
+    """
     autores = modelo.leer_todos_los_autores(AUTORES_CSV)
     return {a["id_autor"]: a for a in autores}
 
 
 def nombre_autor(id_autor: str) -> str:
+    """
+    Obtiene el nombre visible de un autor a partir de su ID.
+
+    Args:
+        id_autor: Identificador del autor.
+
+    Returns:
+        str: Nombre del autor o "Autor #<id>" si no se encuentra.
+    """
     autores = cargar_autores_indexado()
     autor = autores.get(id_autor)
     return autor["nombre_autor"] if autor else f"Autor #{id_autor}"
 
 
 def tabla_autores(autores: List[Dict[str, Any]]) -> Table:
+    """
+    Construye una tabla Rich con la lista de autores.
+
+    Args:
+        autores: Lista de diccionarios de autores.
+
+    Returns:
+        Table: Tabla formateada para impresión en consola.
+    """
     tabla = Table(
         title="Autores",
         border_style="blue",
@@ -213,6 +376,16 @@ def tabla_autores(autores: List[Dict[str, Any]]) -> Table:
 
 
 def tabla_posts(posts: List[Dict[str, Any]], mostrar_autor: bool = True) -> Table:
+    """
+    Construye una tabla Rich con publicaciones.
+
+    Args:
+        posts: Lista de publicaciones.
+        mostrar_autor: Si True, incluye la columna 'Autor'.
+
+    Returns:
+        Table: Tabla formateada con posts.
+    """
     tabla = Table(
         title="Publicaciones",
         border_style="blue",
@@ -240,8 +413,16 @@ def tabla_posts(posts: List[Dict[str, Any]], mostrar_autor: bool = True) -> Tabl
     return tabla
 
 
-# --- Vista tipo "Twitter" ---
 def render_post_twitter(post: Dict[str, Any]) -> None:
+    """
+    Renderiza un post con formato tipo 'tweet' incluyendo sus comentarios.
+
+    Args:
+        post: Publicación a mostrar.
+
+    Returns:
+        None
+    """
     autor = nombre_autor(post["id_autor"])
     titulo = post["titulo"]
     contenido = post["contenido"]
@@ -288,8 +469,16 @@ def render_post_twitter(post: Dict[str, Any]) -> None:
         console.print(Text(f"Tags: {tags}", style="yellow"))
 
 
-# --- NUEVO: Vista detalle con interacción (misma interfaz que bienvenida) ---
 def ver_post_con_interacciones(id_post: str) -> None:
+    """
+    Muestra un post en vista de detalle y ofrece publicar un comentario.
+
+    Args:
+        id_post: Identificador de la publicación a abrir.
+
+    Returns:
+        None
+    """
     post = modelo.buscar_post_por_id(POSTS_JSON, id_post)
     if not post:
         mostrar_error("No existe un post con ese ID.")
@@ -316,6 +505,12 @@ def ver_post_con_interacciones(id_post: str) -> None:
 
 
 def ver_post_ui() -> None:
+    """
+    Flujo UI para solicitar un ID y mostrar un post en detalle.
+
+    Returns:
+        None
+    """
     console.print(Panel.fit("[bold cyan]Ver Publicación[/bold cyan]"))
     id_post = Prompt.ask("[magenta]ID del post[/magenta]").strip()
     if id_post == "0":
@@ -337,6 +532,12 @@ BIENVENIDA_CONTENIDO = (
 
 
 def ensure_sistema_y_bienvenida() -> Dict[str, Any]:
+    """
+    Asegura la existencia del autor 'Sistema' y su post de bienvenida.
+
+    Returns:
+        Dict[str, Any]: Publicación de bienvenida (creada o existente).
+    """
     # Asegurar autor Sistema
     autor_sys = modelo.buscar_autor_por_email(AUTORES_CSV, SISTEMA_EMAIL)
     if not autor_sys:
@@ -357,6 +558,12 @@ def ensure_sistema_y_bienvenida() -> Dict[str, Any]:
 
 
 def mostrar_post_bienvenida_y_comentar() -> None:
+    """
+    Muestra el post de bienvenida y ofrece comentar si hay sesión activa.
+
+    Returns:
+        None
+    """
     post = ensure_sistema_y_bienvenida()
     console.print()
     render_post_twitter(post)
@@ -380,6 +587,13 @@ def mostrar_post_bienvenida_y_comentar() -> None:
 
 # --- Onboarding inicial (registro / login) ---
 def onboarding_inicio() -> bool:
+    """
+    Muestra el onboarding inicial y gestiona login/registro.
+
+    Returns:
+        bool: True si se completó el inicio (login/registro) o ya había sesión;
+              False si el usuario decide salir.
+    """
     # Menú de bienvenida con diseño más colorido y opciones 1/2/0
     menu = Table.grid(expand=True)
     menu.add_column(ratio=1, justify="center")
@@ -409,6 +623,12 @@ def onboarding_inicio() -> bool:
 
 
 def registrar_ui() -> bool:
+    """
+    Flujo de registro de autor con configuración de contraseña.
+
+    Returns:
+        bool: True si se registró e inició sesión; False si se canceló o falló.
+    """
     console.print(
         Panel.fit("[bold cyan]Registro de Autor[/bold cyan]", border_style="bright_blue")
     )
@@ -452,7 +672,13 @@ def registrar_ui() -> bool:
         return False
 
 
-def crear_autor_ui():
+def crear_autor_ui() -> None:
+    """
+    Crea un autor desde la UI y permite configurar su contraseña.
+
+    Returns:
+        None
+    """
     console.print(
         Panel.fit("[bold cyan]Crear Autor[/bold cyan]", border_style="bright_blue")
     )
@@ -479,7 +705,13 @@ def crear_autor_ui():
     pausar()
 
 
-def ver_autores_ui():
+def ver_autores_ui() -> None:
+    """
+    Lista todos los autores en una tabla.
+
+    Returns:
+        None
+    """
     console.print(Panel.fit("[bold cyan]Lista de Autores[/bold cyan]", border_style="bright_blue"))
     autores = modelo.leer_todos_los_autores(AUTORES_CSV)
     if not autores:
@@ -489,7 +721,16 @@ def ver_autores_ui():
     pausar()
 
 
-def actualizar_autor_ui():
+def actualizar_autor_ui() -> None:
+    """
+    Actualiza los datos del autor en sesión (nombre y email).
+
+    Returns:
+        None
+
+    Raises:
+        Cancelado: Si el usuario cancela durante la edición.
+    """
     console.print(
         Panel.fit("[bold cyan]Actualizar Autor[/bold cyan]", border_style="bright_blue")
     )
@@ -532,7 +773,13 @@ def actualizar_autor_ui():
     pausar()
 
 
-def eliminar_autor_ui():
+def eliminar_autor_ui() -> None:
+    """
+    Elimina la cuenta del autor en sesión (y cierra sesión).
+
+    Returns:
+        None
+    """
     console.print(Panel.fit("[bold cyan]Eliminar Autor[/bold cyan]", border_style="bright_blue"))
     # NUEVO: solo el autor en sesión puede eliminar su propia cuenta
     if not Sesion.activa():
@@ -563,7 +810,13 @@ def eliminar_autor_ui():
 
 
 # --- Menú: Autores (CRUD) ---
-def menu_autores():
+def menu_autores() -> None:
+    """
+    Menú CRUD de autores: crear, ver, actualizar y eliminar.
+
+    Returns:
+        None
+    """
     while True:
         console.print(
             Panel(
@@ -590,7 +843,13 @@ def menu_autores():
 
 
 # --- Menú: Sesión (simplificado según estado) ---
-def menu_sesion():
+def menu_sesion() -> None:
+    """
+    Menú de sesión: muestra estado, permite cerrar o iniciar sesión.
+
+    Returns:
+        None
+    """
     if Sesion.activa():
         estado = f"Conectado como [bold green]{Sesion.nombre_autor}[/bold green] <{Sesion.email}> (ID {Sesion.id_autor})"
         console.print(Panel(estado, title="[bold cyan]Sesión[/bold cyan]", border_style="bright_cyan"))
@@ -610,6 +869,15 @@ def menu_sesion():
 
 
 def iniciar_sesion_ui() -> bool:
+    """
+    Flujo de inicio de sesión con verificación de contraseña.
+
+    Si el email no existe ofrece registrarse. Si no hay contraseña configurada
+    la solicitará y la persistirá.
+
+    Returns:
+        bool: True si inicia sesión correctamente; False en caso contrario.
+    """
     console.print(Panel.fit("[bold cyan]Iniciar Sesión[/bold cyan]", border_style="bright_cyan"))
     try:
         email = pedir_obligatorio("Email", to_lower=True)
@@ -677,7 +945,13 @@ def iniciar_sesion_ui() -> bool:
 
 
 # --- Menús: Publicaciones ---
-def menu_publicaciones():
+def menu_publicaciones() -> None:
+    """
+    Menú de publicaciones: crear, listar por autor, buscar por tag, editar y eliminar.
+
+    Returns:
+        None
+    """
     while True:
         console.print(
             Panel(
@@ -706,7 +980,13 @@ def menu_publicaciones():
             return
 
 
-def crear_post_ui():
+def crear_post_ui() -> None:
+    """
+    Crea una publicación asociada al autor en sesión.
+
+    Returns:
+        None
+    """
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para crear publicaciones.")
         pausar()
@@ -735,7 +1015,13 @@ def crear_post_ui():
     pausar()
 
 
-def listar_posts_de_autor_ui():
+def listar_posts_de_autor_ui() -> None:
+    """
+    Lista posts de un autor (sesión o seleccionado) con opción de abrir detalle.
+
+    Returns:
+        None
+    """
     console.print(Panel.fit("[bold cyan]Posts por Autor[/bold cyan]", border_style="bright_blue"))
     if Confirm.ask("[magenta]¿Usar autor en sesión?[/magenta]", default=Sesion.activa()):
         if not Sesion.activa():
@@ -777,7 +1063,13 @@ def listar_posts_de_autor_ui():
         pausar()
 
 
-def buscar_post_por_tag_ui():
+def buscar_post_por_tag_ui() -> None:
+    """
+    Busca publicaciones por tag, mostrando primero los tags disponibles.
+
+    Returns:
+        None
+    """
     console.print(Panel.fit("[bold cyan]Buscar Posts por Tag[/bold cyan]\n", border_style="bright_blue"))
     # Mostrar primero los tags disponibles con su conteo
     tags_conteo = _recolectar_tags_conteo()
@@ -819,13 +1111,27 @@ def buscar_post_por_tag_ui():
         pausar()
 
 
-# === Helpers para mostrar “mis posts” y “mis comentarios” (tabla + detalle) ===
 def _obtener_mis_posts() -> List[Dict[str, Any]]:
+    """
+    Obtiene todas las publicaciones del autor en sesión.
+
+    Returns:
+        List[Dict[str, Any]]: Lista de posts propios (o vacía si no hay sesión).
+    """
     if not Sesion.activa():
         return []
     return modelo.listar_posts_por_autor(POSTS_JSON, Sesion.id_autor)
 
 def _mostrar_tabla_y_detalle_posts(posts: List[Dict[str, Any]]) -> None:
+    """
+    Muestra una tabla de posts y a continuación su vista detalle.
+
+    Args:
+        posts: Publicaciones a listar y detallar.
+
+    Returns:
+        None
+    """
     if not posts:
         console.print("[yellow]No tienes publicaciones.[/yellow]")
         return
@@ -836,6 +1142,12 @@ def _mostrar_tabla_y_detalle_posts(posts: List[Dict[str, Any]]) -> None:
         console.print()  # separación entre posts
 
 def _cargar_todos_los_posts() -> List[Dict[str, Any]]:
+    """
+    Carga sin validación estricta el JSON de posts desde disco.
+
+    Returns:
+        List[Dict[str, Any]]: Lista de publicaciones (normaliza campos mínimos).
+    """
     try:
         datos = gestor_datos.cargar_datos(POSTS_JSON) or []
         # Normalizar estructuras esperadas
@@ -848,6 +1160,12 @@ def _cargar_todos_los_posts() -> List[Dict[str, Any]]:
 
 # NUEVO: recolectar tags usados con conteo y tabla para mostrarlos
 def _recolectar_tags_conteo():
+    """
+    Recolecta todos los tags usados en publicaciones y su conteo.
+
+    Returns:
+        List[Tuple[str, int]]: Lista de pares (tag, conteo) ordenada por uso desc.
+    """
     posts = _cargar_todos_los_posts()
     contador: Dict[str, int] = {}
     for p in posts:
@@ -859,6 +1177,15 @@ def _recolectar_tags_conteo():
     return sorted(contador.items(), key=lambda kv: (-kv[1], kv[0].lower()))
 
 def _tabla_tags(tags_conteo) -> Table:
+    """
+    Construye la tabla de tags con su número de usos.
+
+    Args:
+        tags_conteo: Secuencia de pares (tag, conteo).
+
+    Returns:
+        Table: Tabla formateada para impresión.
+    """
     tabla = Table(
         title="Tags disponibles",
         border_style="blue",
@@ -874,9 +1201,10 @@ def _tabla_tags(tags_conteo) -> Table:
 
 def _recolectar_mis_comentarios() -> List[Dict[str, Any]]:
     """
-    Devuelve una lista de dicts:
-    {'id_comentario', 'id_post', 'fecha', 'autor', 'contenido'}
-    solo de comentarios cuyo id_autor == Sesion.id_autor
+    Devuelve los comentarios realizados por el autor en sesión.
+
+    Returns:
+        List[Dict[str, Any]]: Cada item contiene id_comentario, id_post, fecha, autor y contenido.
     """
     if not Sesion.activa():
         return []
@@ -895,6 +1223,15 @@ def _recolectar_mis_comentarios() -> List[Dict[str, Any]]:
     return mis
 
 def _tabla_mis_comentarios(mis: List[Dict[str, Any]]) -> Table:
+    """
+    Construye una tabla con los comentarios del autor en sesión.
+
+    Args:
+        mis: Lista de comentarios propios.
+
+    Returns:
+        Table: Tabla formateada con comentarios.
+    """
     tabla = Table(
         title="Mis Comentarios",
         border_style="blue",
@@ -912,6 +1249,15 @@ def _tabla_mis_comentarios(mis: List[Dict[str, Any]]) -> Table:
     return tabla
 
 def _mostrar_tabla_y_detalle_mis_comentarios(mis: List[Dict[str, Any]]) -> None:
+    """
+    Muestra tabla de mis comentarios y luego la vista detalle de sus posts.
+
+    Args:
+        mis: Lista de comentarios propios.
+
+    Returns:
+        None
+    """
     if not mis:
         console.print("[yellow]No has realizado comentarios.[/yellow]")
         return
@@ -931,7 +1277,13 @@ def _mostrar_tabla_y_detalle_mis_comentarios(mis: List[Dict[str, Any]]) -> None:
             console.print()
 
 
-def editar_post_ui():
+def editar_post_ui() -> None:
+    """
+    Edita una publicación del autor en sesión, guiando con tabla y detalle.
+
+    Returns:
+        None
+    """
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para editar sus publicaciones.")
         pausar()
@@ -1016,7 +1368,13 @@ def editar_post_ui():
     pausar()
 
 
-def eliminar_post_ui():
+def eliminar_post_ui() -> None:
+    """
+    Elimina una publicación del autor en sesión, tras confirmación.
+
+    Returns:
+        None
+    """
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para eliminar sus publicaciones.")
         pausar()
@@ -1067,7 +1425,13 @@ def eliminar_post_ui():
     pausar()
 
 
-def eliminar_comentario_ui():
+def eliminar_comentario_ui() -> None:
+    """
+    Elimina un comentario propio, mostrando primero tabla y detalle para guiar.
+
+    Returns:
+        None
+    """
     console.print(Panel.fit("[bold cyan]Eliminar Comentario[/bold cyan]", border_style="bright_magenta"))
 
     # Requiere sesión para filtrar “mis comentarios”
@@ -1136,7 +1500,13 @@ def eliminar_comentario_ui():
 
 
 # --- Menú y UIs: Comentarios ---
-def agregar_comentario_ui():
+def agregar_comentario_ui() -> None:
+    """
+    Agrega un comentario a un post, mostrando el detalle antes de confirmar.
+
+    Returns:
+        None
+    """
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para comentar.")
         pausar()
@@ -1179,7 +1549,13 @@ def agregar_comentario_ui():
     pausar()
 
 
-def editar_comentario_ui():
+def editar_comentario_ui() -> None:
+    """
+    Edita un comentario propio, guiando con tabla y detalle y confirmación final.
+
+    Returns:
+        None
+    """
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para editar sus comentarios.")
         pausar()
@@ -1270,7 +1646,13 @@ def editar_comentario_ui():
     pausar()
 
 
-def menu_comentarios():
+def menu_comentarios() -> None:
+    """
+    Menú de comentarios: agregar, editar y eliminar.
+
+    Returns:
+        None
+    """
     while True:
         console.print(
             Panel(
@@ -1294,7 +1676,13 @@ def menu_comentarios():
 
 
 # --- Menú principal ---
-def mostrar_menu_principal():
+def mostrar_menu_principal() -> None:
+    """
+    Muestra el menú principal y el estado de sesión como subtítulo.
+
+    Returns:
+        None
+    """
     sesion_txt = (
         Text.assemble(Text("Conectado: ", style="bright_green"), Text(f"{Sesion.nombre_autor} <{Sesion.email}>", style="green"))
         if Sesion.activa()
@@ -1316,7 +1704,15 @@ def mostrar_menu_principal():
     console.print("[bold red]5. Salir[/bold red]")
 
 
-def main():
+def main() -> None:
+    """
+    Punto de entrada de la aplicación.
+
+    Inicializa archivos, muestra bienvenida y gestiona el bucle principal del menú.
+
+    Returns:
+        None
+    """
     init_archivos()
     # Asegurar bienvenida del sistema
     ensure_sistema_y_bienvenida()

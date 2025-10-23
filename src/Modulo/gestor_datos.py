@@ -1,25 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 Módulo de Persistencia de Datos.
-
-Responsable de leer y escribir datos en archivos planos (CSV y JSON).
-No contiene lógica de negocio, solo operaciones de I/O.
-
-Diseñado para trabajar con:
-- Autores (CSV): columnas ['id_autor', 'nombre_autor', 'email', 'password_hash'].
-- Publicaciones (JSON): lista de objetos (posts) según el modelo.
-
-Funciones públicas:
-- inicializar_archivo(filepath)
-- cargar_datos(filepath) -> List[Dict[str, Any]]
-- guardar_datos(filepath, datos) -> None
 """
-
-import csv
-import json
-import os
-import tempfile
-from typing import Any, Dict, List
+import csv  # Lectura/escritura de archivos CSV
+import json  # Manejo de estructuras y archivos JSON
+import os  # Operaciones con rutas y sistema de archivos
+import tempfile  # Archivos temporales para escritura atómica
+from typing import Any, Dict, List  # Anotaciones de tipos para claridad
 
 # Constantes de cabeceras para CSV de autores
 CAMPOS_AUTORES = ["id_autor", "nombre_autor", "email", "password_hash"]
@@ -30,24 +17,53 @@ CAMPOS_AUTORES = ["id_autor", "nombre_autor", "email", "password_hash"]
 # ---------------------------
 
 def _es_csv(filepath: str) -> bool:
+    """Indica si la ruta corresponde a un archivo CSV.
+
+    Args:
+        filepath: Ruta del archivo.
+
+    Returns:
+        bool: True si termina en .csv; False en caso contrario.
+    """
     return filepath.lower().endswith(".csv")
 
 
 def _es_json(filepath: str) -> bool:
+    """Indica si la ruta corresponde a un archivo JSON.
+
+    Args:
+        filepath: Ruta del archivo.
+
+    Returns:
+        bool: True si termina en .json; False en caso contrario.
+    """
     return filepath.lower().endswith(".json")
 
 
 def _asegurar_directorio(filepath: str) -> None:
-    """Crea el directorio padre si no existe."""
+    """Crea el directorio padre si no existe.
+
+    Args:
+        filepath: Ruta del archivo objetivo.
+
+    Returns:
+        None
+    """
     directorio = os.path.dirname(os.path.abspath(filepath))
     if directorio and not os.path.exists(directorio):
         os.makedirs(directorio, exist_ok=True)
 
 
 def _campos_csv_para(filepath: str) -> List[str]:
-    """
-    Determina los campos que se usarán en el CSV.
+    """Determina los campos que se usarán en el CSV.
+
     En este proyecto solo manejamos 'autores.csv'.
+
+    Args:
+        filepath: Ruta del archivo CSV.
+
+    Returns:
+        List[str]: Lista de nombres de columnas.
     """
     nombre = os.path.basename(filepath).lower()
     if nombre.endswith("autores.csv"):
@@ -57,10 +73,17 @@ def _campos_csv_para(filepath: str) -> List[str]:
 
 
 def _escritura_atomica(path_destino: str, contenido: str, modo_binario: bool = False) -> None:
-    """
-    Escribe contenido a un archivo de forma atómica:
-    - Crea un archivo temporal en el mismo directorio
-    - Escribe y luego reemplaza
+    """Escribe contenido a un archivo de forma atómica.
+
+    Crea un archivo temporal en el mismo directorio, escribe y reemplaza.
+
+    Args:
+        path_destino: Ruta del archivo destino.
+        contenido: Contenido a escribir.
+        modo_binario: Indica si se escribe en binario.
+
+    Returns:
+        None
     """
     _asegurar_directorio(path_destino)
     directorio = os.path.dirname(os.path.abspath(path_destino)) or "."
@@ -80,11 +103,16 @@ def _escritura_atomica(path_destino: str, contenido: str, modo_binario: bool = F
 # ---------------------------
 
 def inicializar_archivo(filepath: str) -> None:
-    """
-    Verifica si un archivo de datos existe. Si no, lo crea vacío con el formato correcto.
+    """Inicializa un archivo de datos si no existe.
 
     - Para CSV: escribe cabecera.
     - Para JSON: escribe una lista vacía [].
+
+    Args:
+        filepath: Ruta del archivo a inicializar.
+
+    Returns:
+        None
     """
     _asegurar_directorio(filepath)
 
@@ -101,12 +129,17 @@ def inicializar_archivo(filepath: str) -> None:
 
 
 def cargar_datos(filepath: str) -> List[Dict[str, Any]]:
-    """
-    Carga los datos desde un archivo (CSV o JSON) y los retorna como una lista de diccionarios.
+    """Carga datos desde un archivo CSV o JSON.
 
     - Si el archivo no existe, se inicializa y retorna lista vacía.
-    - Para CSV, todas las celdas se leen como strings.
-    - Para JSON, si el contenido no es una lista válida, retorna [].
+    - CSV: celdas como strings y solo columnas esperadas.
+    - JSON: si el contenido no es lista válida, retorna [].
+
+    Args:
+        filepath: Ruta del archivo a cargar.
+
+    Returns:
+        List[Dict[str, Any]]: Datos cargados como lista de diccionarios.
     """
     inicializar_archivo(filepath)
 
@@ -136,15 +169,17 @@ def cargar_datos(filepath: str) -> List[Dict[str, Any]]:
 
 
 def guardar_datos(filepath: str, datos: List[Dict[str, Any]]) -> None:
-    """
-    Guarda una lista de diccionarios en un archivo (CSV o JSON), sobrescribiendo el contenido.
+    """Guarda una lista de diccionarios en CSV o JSON.
 
-    - Para CSV:
-      - Escribe cabeceras fijas para autores.
-      - Convierte todos los valores a str.
-      - Escritura atómica (archivo temporal + replace).
-    - Para JSON:
-      - Escritura atómica con identación.
+    - CSV: cabeceras fijas, valores convertidos a str, escritura atómica.
+    - JSON: escritura atómica con indentación y UTF-8.
+
+    Args:
+        filepath: Ruta del archivo a escribir.
+        datos: Lista de diccionarios a persistir.
+
+    Returns:
+        None
     """
     if _es_csv(filepath):
         campos = _campos_csv_para(filepath)
