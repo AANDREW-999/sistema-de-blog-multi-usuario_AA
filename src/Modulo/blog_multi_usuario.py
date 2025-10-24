@@ -110,7 +110,8 @@ def _parsear_tags(tags: Any) -> List[str]:
     if isinstance(tags, str):
         separados = [p.strip() for p in tags.split(",")]
         return _normalizar_tags(separados)
-    raise ValidacionError("Formato de 'tags' no soportado. Use lista o cadena separada por comas.")
+    raise ValidacionError("Formato de 'tags' no soportado. Use lista o cadena separada "
+                          "por comas.")
 
 
 def _generar_id(items: List[Dict[str, Any]], clave_id: str) -> int:
@@ -152,12 +153,8 @@ def _generar_id_comentario(post: Dict[str, Any]) -> int:
         max_id = 0
     return max_id + 1
 
-
-# =========================
-# Autores (CSV)
-# =========================
-
-def crear_autor(autores_filepath: str, nombre_autor: str, email: str, password_hash: str = "") -> Dict[str, Any]:
+def crear_autor(autores_filepath: str, nombre_autor: str, email: str, password_hash: str
+= "") -> Dict[str, Any]:
     """Crea un nuevo autor.
 
     Valida el email y su unicidad, y persiste el registro en CSV.
@@ -181,7 +178,8 @@ def crear_autor(autores_filepath: str, nombre_autor: str, email: str, password_h
 
     autores = gestor_datos.cargar_datos(autores_filepath)
 
-    if any(a.get("email", "").strip().lower() == email.strip().lower() for a in autores):
+    if any(a.get("email", "").strip().lower() == email.strip().lower()
+           for a in autores):
         raise EmailDuplicado(f"El email '{email}' ya se encuentra registrado.")
 
     nuevo_id = _generar_id(autores, "id_autor")
@@ -196,7 +194,8 @@ def crear_autor(autores_filepath: str, nombre_autor: str, email: str, password_h
     return autor
 
 
-def leer_todos_los_autores(autores_filepath: str) -> List[Dict[str, Any]]:
+def leer_todos_los_autores(autores_filepath: str) -> \
+        (List)[Dict[str, Any]]:
     """Obtiene la lista completa de autores.
 
     Args:
@@ -208,7 +207,8 @@ def leer_todos_los_autores(autores_filepath: str) -> List[Dict[str, Any]]:
     return gestor_datos.cargar_datos(autores_filepath)
 
 
-def buscar_autor_por_id(autores_filepath: str, id_autor: str | int) -> Optional[Dict[str, Any]]:
+def buscar_autor_por_id(autores_filepath: str, id_autor: str | int) \
+        -> Optional[Dict[str, Any]]:
     """Busca un autor por su ID.
 
     Args:
@@ -226,7 +226,8 @@ def buscar_autor_por_id(autores_filepath: str, id_autor: str | int) -> Optional[
     return None
 
 
-def buscar_autor_por_email(autores_filepath: str, email: str) -> Optional[Dict[str, Any]]:
+def buscar_autor_por_email(autores_filepath: str, email: str) \
+        -> Optional[Dict[str, Any]]:
     """Busca un autor por email (insensible a mayúsculas).
 
     Args:
@@ -295,8 +296,10 @@ def actualizar_autor(
         _validar_email(nuevo_email)
         # verificar unicidad
         for a in autores:
-            if a.get("id_autor") != id_str and a.get("email", "").strip().lower() == nuevo_email:
-                raise EmailDuplicado(f"El email '{nuevo_email}' ya está en uso por otro autor.")
+            if (a.get("id_autor") != id_str and a.get("email", "").strip().lower()
+                    == nuevo_email):
+                raise EmailDuplicado(f"El email '{nuevo_email}"
+                                     f"' ya está en uso por otro autor.")
         autor["email"] = nuevo_email
 
     if "password_hash" in datos_nuevos:
@@ -327,19 +330,13 @@ def eliminar_autor(autores_filepath: str, id_autor: str | int) -> bool:
     return False
 
 
-# =========================
-# Posts (JSON)
-# =========================
-
 def crear_post(
-    posts_filepath: str,
-    id_autor_en_sesion: str | int,
-    titulo: str,
-    contenido: str,
-    tags: Any,
-    *,
-    validar_autor_en: Optional[str] = None,
-    fecha_publicacion: Optional[str] = None,
+        posts_filepath: str,
+        id_autor_en_sesion: str | int,
+        titulo: str,
+        contenido: str,
+        tags: Any,
+        **opciones,
 ) -> Dict[str, Any]:
     """Crea una nueva publicación asociada al autor en sesión.
 
@@ -349,8 +346,9 @@ def crear_post(
         titulo: Título del post.
         contenido: Contenido del post.
         tags: Lista/tupla de strings o cadena separada por comas.
-        validar_autor_en: Ruta al CSV de autores para validar existencia del autor.
-        fecha_publicacion: Fecha personalizada 'YYYY-MM-DD HH:MM:SS'.
+        **opciones: Opciones adicionales:
+            - validar_autor_en (str): Ruta al CSV de autores para validar existencia del autor.
+            - fecha_publicacion (str): Fecha personalizada 'YYYY-MM-DD HH:MM:SS'.
 
     Returns:
         Dict[str, Any]: Post creado.
@@ -359,6 +357,10 @@ def crear_post(
         AutorNoEncontrado: Si el autor no existe al validar.
         ValidacionError: Si los datos son inválidos.
     """
+    # Extraer opciones
+    validar_autor_en = opciones.get('validar_autor_en')
+    fecha_publicacion = opciones.get('fecha_publicacion')
+
     if not _es_str_no_vacio(titulo):
         raise ValidacionError("El título es obligatorio.")
     if not _es_str_no_vacio(contenido):
@@ -379,7 +381,8 @@ def crear_post(
         "id_autor": id_autor_str,
         "titulo": titulo.strip(),
         "contenido": contenido.strip(),
-        "fecha_publicacion": fecha_publicacion.strip() if _es_str_no_vacio(fecha_publicacion or "") else _ahora_str(),
+        "fecha_publicacion": fecha_publicacion.strip() if _es_str_no_vacio
+        (fecha_publicacion or "") else _ahora_str(),
         "tags": _parsear_tags(tags),
         "comentarios": [],
     }
@@ -400,7 +403,8 @@ def leer_todos_los_posts(posts_filepath: str) -> List[Dict[str, Any]]:
     return gestor_datos.cargar_datos(posts_filepath)
 
 
-def listar_posts_por_autor(posts_filepath: str, id_autor: str | int) -> List[Dict[str, Any]]:
+def listar_posts_por_autor(posts_filepath: str, id_autor: str | int) \
+        -> List[Dict[str, Any]]:
     """Lista todas las publicaciones de un autor específico.
 
     Args:
@@ -437,7 +441,8 @@ def buscar_posts_por_tag(posts_filepath: str, tag: str) -> List[Dict[str, Any]]:
     return [p for p in posts if t in [tt.lower() for tt in (p.get("tags") or [])]]
 
 
-def buscar_post_por_id(posts_filepath: str, id_post: str | int) -> Optional[Dict[str, Any]]:
+def buscar_post_por_id(posts_filepath: str, id_post: str | int) \
+        -> Optional[Dict[str, Any]]:
     """Obtiene un post por su ID.
 
     Args:
@@ -614,7 +619,8 @@ def agregar_comentario_a_post(
     return comentario
 
 
-def listar_comentarios_de_post(posts_filepath: str, id_post: str | int) -> List[Dict[str, Any]]:
+def listar_comentarios_de_post(posts_filepath: str, id_post: str | int) \
+        -> List[Dict[str, Any]]:
     """Lista todos los comentarios de un post.
 
     Args:
@@ -753,7 +759,8 @@ def actualizar_comentario_de_post(
 
     # Validar y aplicar cambios permitidos
     if "contenido" in datos_nuevos:
-        nuevo_contenido = str(datos_nuevos["contenido"]) if datos_nuevos["contenido"] is not None else ""
+        nuevo_contenido = str(datos_nuevos["contenido"]) if (datos_nuevos["contenido"]
+                                                             is not None) else ""
         if not _es_str_no_vacio(nuevo_contenido):
             raise ValidacionError("El contenido del comentario no puede estar vacío.")
         comentario["contenido"] = nuevo_contenido.strip()
@@ -766,9 +773,6 @@ def actualizar_comentario_de_post(
     return comentario
 
 
-# =========================
-# API pública del modelo
-# =========================
 
 __all__ = [
     # Excepciones
