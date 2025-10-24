@@ -7,14 +7,12 @@ import json  # Manejo de estructuras y archivos JSON
 import os  # Operaciones con rutas y sistema de archivos
 import tempfile  # Archivos temporales para escritura atómica
 from typing import Any, Dict, List  # Anotaciones de tipos para claridad
+from io import StringIO
 
 # Constantes de cabeceras para CSV de autores
 CAMPOS_AUTORES = ["id_autor", "nombre_autor", "email", "password_hash"]
 
 
-# ---------------------------
-# Utilidades internas
-# ---------------------------
 
 def _es_csv(filepath: str) -> bool:
     """Indica si la ruta corresponde a un archivo CSV.
@@ -72,7 +70,8 @@ def _campos_csv_para(filepath: str) -> List[str]:
     return CAMPOS_AUTORES
 
 
-def _escritura_atomica(path_destino: str, contenido: str, modo_binario: bool = False) -> None:
+def _escritura_atomica(path_destino: str, contenido: str, modo_binario: bool = False) \
+        -> None:
     """Escribe contenido a un archivo de forma atómica.
 
     Crea un archivo temporal en el mismo directorio, escribe y reemplaza.
@@ -91,16 +90,13 @@ def _escritura_atomica(path_destino: str, contenido: str, modo_binario: bool = F
     mode = "wb" if modo_binario else "w"
     encoding = None if modo_binario else "utf-8"
 
-    with tempfile.NamedTemporaryFile(mode=mode, delete=False, dir=directorio, suffix=suffix, encoding=encoding) as tmp:
+    with tempfile.NamedTemporaryFile(mode=mode, delete=False, dir=directorio,
+                                     suffix=suffix, encoding=encoding) as tmp:
         tmp.write(contenido)
         tmp_path = tmp.name
 
     os.replace(tmp_path, path_destino)
 
-
-# ---------------------------
-# API pública
-# ---------------------------
 
 def inicializar_archivo(filepath: str) -> None:
     """Inicializa un archivo de datos si no existe.
@@ -184,14 +180,15 @@ def guardar_datos(filepath: str, datos: List[Dict[str, Any]]) -> None:
     if _es_csv(filepath):
         campos = _campos_csv_para(filepath)
         # Construimos el contenido CSV en memoria para escritura atómica.
-        from io import StringIO
+
 
         buffer = StringIO()
         writer = csv.DictWriter(buffer, fieldnames=campos)
         writer.writeheader()
 
         for item in datos or []:
-            fila = {k: str(item.get(k, "") if item.get(k, "") is not None else "") for k in campos}
+            fila = {k: str(item.get(k, "") if item.get(k, "") is not None else "")
+                    for k in campos}
             writer.writerow(fila)
 
         _escritura_atomica(filepath, buffer.getvalue(), modo_binario=False)
@@ -202,5 +199,3 @@ def guardar_datos(filepath: str, datos: List[Dict[str, Any]]) -> None:
         contenido = json.dumps(datos or [], ensure_ascii=False, indent=4)
         _escritura_atomica(filepath, contenido, modo_binario=False)
         return
-
-    # Si no es CSV ni JSON, no hacemos nada (o podríamos lanzar una excepción si se requiere).
