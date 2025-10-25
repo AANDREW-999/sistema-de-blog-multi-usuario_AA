@@ -664,30 +664,29 @@ def onboarding_inicio() -> bool:
         bool: True si se completó el inicio (login/registro) o ya había sesión;
               False si el usuario decide salir.
     """
-    # Menú de bienvenida con diseño más colorido y opciones 1/2/0
-    menu = Table.grid(expand=True)
-    menu.add_column(ratio=1, justify="center")
-    menu.add_row(Text("Bienvenido", style="bold bright_cyan"))
-    opciones = Table.grid(padding=(0, 2))
-    opciones.add_column(justify="right", style="bold yellow")
-    opciones.add_column(justify="left")
-    opciones.add_row("1", "Iniciar sesión")
-    opciones.add_row("2", "Registrarse")
-    opciones.add_row("0", "Salir")
-    panel = Panel(
-        opciones,
-        title="[bold cyan]Inicio[/bold cyan]",
-        border_style="bright_cyan",
-    )
-    console.print(panel)
-
     while not Sesion.activa():
+        menu = Table.grid(expand=True)
+        menu.add_column(ratio=1, justify="center")
+        menu.add_row(Text("Bienvenido", style="bold bright_cyan"))
+        opciones = Table.grid(padding=(0, 2))
+        opciones.add_column(justify="right", style="bold yellow")
+        opciones.add_column(justify="left")
+        opciones.add_row("1", "Iniciar sesión")
+        opciones.add_row("2", "Registrarse")
+        opciones.add_row("0", "Salir")
+        panel = Panel(
+            opciones,
+            title="[bold cyan]Inicio[/bold cyan]",
+            border_style="bright_cyan",
+        )
+        console.print(panel)
+
         opcion = Prompt.ask(
             "[magenta]Opción[/magenta]",
             choices=["1", "2", "0"],
             show_choices=False,
-            default="1",
-        )
+            default="1", )
+
         if opcion == "1":
             if iniciar_sesion_ui():
                 mostrar_post_bienvenida_y_comentar()
