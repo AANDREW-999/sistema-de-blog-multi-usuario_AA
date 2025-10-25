@@ -131,8 +131,9 @@ def test_cargar_todos_los_posts_normaliza_estructura(main_mod: Any) -> None:
     gestor_datos.guardar_datos(main_mod.POSTS_JSON, posts)
 
     loaded = main_mod._cargar_todos_los_posts()
+    ESPERADOS = 3
     assert isinstance(loaded, list)
-    assert len(loaded) == 3
+    assert len(loaded) == ESPERADOS
     for p in loaded:
         assert isinstance(p.get("tags"), list)
         assert isinstance(p.get("comentarios"), list)
@@ -158,8 +159,10 @@ def test_recolectar_tags_conteo_y_orden(main_mod: Any) -> None:
 
     tags_conteo = main_mod._recolectar_tags_conteo()
     mapa = {t: c for t, c in tags_conteo}
-    assert mapa.get("python", 0) == 3
-    assert mapa.get("misc", 0) == 2
+    PYTHON_COUNT = 3
+    MISC_COUNT = 2
+    assert mapa.get("python", 0) == PYTHON_COUNT
+    assert mapa.get("misc", 0) == MISC_COUNT
     assert tags_conteo[0][0].lower() == "python"
 
 
@@ -418,5 +421,5 @@ def test_ensure_sistema_y_bienvenida_crea_y_idempotente(
     posts_tag_sys = [
         p for p in posts_tag if p.get("id_autor") == autor_sys["id_autor"]
     ]
-    assert len(posts_tag_sys) == 1
-
+    UNO = 1
+    assert len(posts_tag_sys) == UNO

@@ -157,10 +157,12 @@ def test_guardar_y_cargar_json(tmp_path: Path) -> None:
 
 
 def test_guardar_y_cargar_en_formato_no_soportado_no_falla(tmp_path: Path) -> None:
-    """Extensiones no soportadas no lanzan excepción y retornan lista vacía al cargar."""
+    """Extensiones no soportadas no lanzan excepción
+
+    y retornan lista vacía al cargar.
+    """
     ruta = tmp_path / "datos.txt"
     # Guardar no debe fallar
     gd.guardar_datos(str(ruta), [{"a": 1}])
     # Cargar retorna []
     assert gd.cargar_datos(str(ruta)) == []
-
