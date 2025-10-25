@@ -40,7 +40,13 @@ console = Console()
 Cancelado = Exception
 
 
-def pedir(mensaje: str, *, password: bool = False, default: Optional[str] = None, to_lower: bool = False) -> str:
+def pedir(
+    mensaje: str,
+    *,
+    password: bool = False,
+    default: Optional[str] = None,
+    to_lower: bool = False,
+) -> str:
     """
     Solicita un valor al usuario (Prompt) con opción de cancelar.
 
@@ -59,11 +65,17 @@ def pedir(mensaje: str, *, password: bool = False, default: Optional[str] = None
     Raises:
         Cancelado: Cuando el usuario ingresa "0".
     """
-    etiqueta = f"[magenta]{mensaje}[/magenta] [dim](0 para salir)[/dim]"
+    etiqueta = (
+        f"[magenta]{mensaje}[/magenta] [dim](0 para salir)[/dim]"
+    )
     if default is None:
         raw = Prompt.ask(etiqueta, password=password)
     else:
-        raw = Prompt.ask(etiqueta, password=password, default=str(default))
+        raw = Prompt.ask(
+            etiqueta,
+            password=password,
+            default=str(default),
+        )
 
     valor = "" if raw is None else str(raw)
     valor = valor.strip()
@@ -83,11 +95,21 @@ def mostrar_advertencia(mensaje: str) -> None:
     Returns:
         None
     """
-    console.print(Panel(f"[yellow]{mensaje}[/yellow]", border_style="yellow", title="[bold yellow]Aviso[/bold yellow]"))
+    console.print(
+        Panel(
+            f"[yellow]{mensaje}[/yellow]",
+            border_style="yellow",
+            title="[bold yellow]Aviso[/bold yellow]",
+        )
+    )
 
 
 def pedir_obligatorio(
-    mensaje: str, *, password: bool = False, default: Optional[str] = None, to_lower: bool = False
+    mensaje: str,
+    *,
+    password: bool = False,
+    default: Optional[str] = None,
+    to_lower: bool = False,
 ) -> str:
     """
     Solicita un valor no vacío; reintenta si el usuario deja el campo vacío.
@@ -105,10 +127,17 @@ def pedir_obligatorio(
         Cancelado: Cuando el usuario ingresa "0".
     """
     while True:
-        valor = pedir(mensaje, password=password, default=default, to_lower=to_lower)
+        valor = pedir(
+            mensaje,
+            password=password,
+            default=default,
+            to_lower=to_lower,
+        )
         if valor != "":
             return valor
-        mostrar_advertencia("El campo no puede estar vacío. Inténtalo de nuevo.")
+        mostrar_advertencia(
+            "El campo no puede estar vacío. Inténtalo de nuevo."
+        )
 
 
 def _hash_password(pwd: str, salt: Optional[str] = None) -> str:
@@ -172,8 +201,11 @@ def pedir_password_nuevo() -> str:
 
 
 # --- Configuración de rutas ---
-# Hacemos la ruta a 'data/' robusta, independiente del cwd (dos niveles arriba de este archivo)
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+# Hacemos la ruta a 'data/' robusta, independiente del cwd
+# (dos niveles arriba de este archivo)
+BASE_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..")
+)
 DIRECTORIO_DATOS = os.path.join(BASE_DIR, "data")
 AUTORES_CSV = os.path.join(DIRECTORIO_DATOS, "autores.csv")
 POSTS_JSON = os.path.join(DIRECTORIO_DATOS, "posts.json")
@@ -279,7 +311,13 @@ def mostrar_error(mensaje: str) -> None:
     Returns:
         None
     """
-    console.print(Panel(f"[bright_red]{mensaje}[/bright_red]", border_style="red", title="[bold red]Error[/bold red]"))
+    console.print(
+        Panel(
+            f"[bright_red]{mensaje}[/bright_red]",
+            border_style="red",
+            title="[bold red]Error[/bold red]",
+        )
+    )
 
 
 def mostrar_ok(mensaje: str) -> None:
@@ -293,7 +331,11 @@ def mostrar_ok(mensaje: str) -> None:
         None
     """
     console.print(
-        Panel(f"[bright_green]{mensaje}[/bright_green]", border_style="green", title="[bold green]Éxito[/bold green]")
+        Panel(
+            f"[bright_green]{mensaje}[/bright_green]",
+            border_style="green",
+            title="[bold green]Éxito[/bold green]",
+        )
     )
 
 
@@ -455,13 +497,32 @@ def render_post_twitter(post: Dict[str, Any]) -> None:
     comentarios = post.get("comentarios") or []
     if comentarios:
         for c in comentarios:
-            cab = Text(f"{c['autor']} · {c['fecha']}", style="magenta")
-            comentarios_tbl.add_row(Panel(Text(c["contenido"]), title=cab, border_style="magenta"))
+            cab = Text(
+                f"{c['autor']} · {c['fecha']}",
+                style="magenta",
+            )
+            comentarios_tbl.add_row(
+                Panel(
+                    Text(c["contenido"]),
+                    title=cab,
+                    border_style="magenta",
+                )
+            )
     else:
-        comentarios_tbl.add_row(Text("Sé el primero en comentar...", style="dim"))
+        comentarios_tbl.add_row(
+            Text("Sé el primero en comentar...", style="dim")
+        )
 
     post_panel = Panel.fit(
-        Group(header, cuerpo, Panel(comentarios_tbl, title="Comentarios", border_style="blue")),
+        Group(
+            header,
+            cuerpo,
+            Panel(
+                comentarios_tbl,
+                title="Comentarios",
+                border_style="blue",
+            ),
+        ),
         title=Text(f"#{post['id_post']}", style="bold blue"),
         border_style="blue",
         padding=(1, 1),
@@ -496,7 +557,11 @@ def ver_post_con_interacciones(id_post: str) -> None:
             if contenido:
                 try:
                     modelo.agregar_comentario_a_post(
-                        POSTS_JSON, post["id_post"], autor_nombre, contenido, id_autor=Sesion.id_autor
+                        POSTS_JSON,
+                        post["id_post"],
+                        autor_nombre,
+                        contenido,
+                        id_autor=Sesion.id_autor,
                     )
                     mostrar_ok("¡Comentario publicado!")
                 except modelo.ErrorDeDominio as e:
@@ -570,14 +635,21 @@ def mostrar_post_bienvenida_y_comentar() -> None:
     console.print()
     render_post_twitter(post)
     console.print()
-    if Confirm.ask("¿Quieres comentar en la bienvenida ahora?", default=False):
+    if Confirm.ask(
+        "¿Quieres comentar en la bienvenida ahora?",
+        default=False,
+    ):
         if Sesion.activa():
             autor_nombre = Sesion.nombre_autor or "Anónimo"
             contenido = Prompt.ask("Escribe tu comentario").strip()
             if contenido:
                 try:
                     modelo.agregar_comentario_a_post(
-                        POSTS_JSON, post["id_post"], autor_nombre, contenido, id_autor=Sesion.id_autor
+                        POSTS_JSON,
+                        post["id_post"],
+                        autor_nombre,
+                        contenido,
+                        id_autor=Sesion.id_autor,
                     )
                     mostrar_ok("¡Comentario publicado!")
                 except modelo.ErrorDeDominio as e:
@@ -606,11 +678,20 @@ def onboarding_inicio() -> bool:
     opciones.add_row("1", "Iniciar sesión")
     opciones.add_row("2", "Registrarse")
     opciones.add_row("0", "Salir")
-    panel = Panel(opciones, title="[bold cyan]Inicio[/bold cyan]", border_style="bright_cyan")
+    panel = Panel(
+        opciones,
+        title="[bold cyan]Inicio[/bold cyan]",
+        border_style="bright_cyan",
+    )
     console.print(panel)
 
     while not Sesion.activa():
-        opcion = Prompt.ask("[magenta]Opción[/magenta]", choices=["1", "2", "0"], show_choices=False, default="1")
+        opcion = Prompt.ask(
+            "[magenta]Opción[/magenta]",
+            choices=["1", "2", "0"],
+            show_choices=False,
+            default="1",
+        )
         if opcion == "1":
             if iniciar_sesion_ui():
                 mostrar_post_bienvenida_y_comentar()
@@ -632,7 +713,10 @@ def registrar_ui() -> bool:
         bool: True si se registró e inició sesión; False si se canceló o falló.
     """
     console.print(
-        Panel.fit("[bold cyan]Registro de Autor[/bold cyan]", border_style="bright_blue")
+        Panel.fit(
+            "[bold cyan]Registro de Autor[/bold cyan]",
+            border_style="bright_blue",
+        )
     )
     try:
         nombre = pedir_obligatorio("Nombre del autor")
@@ -644,19 +728,33 @@ def registrar_ui() -> bool:
             try:
                 pwd = pedir_password_nuevo()
                 pwd_hash = _hash_password(pwd)
-                modelo.actualizar_autor(AUTORES_CSV, autor["id_autor"], {"password_hash": pwd_hash})
+                modelo.actualizar_autor(
+                    AUTORES_CSV,
+                    autor["id_autor"],
+                    {"password_hash": pwd_hash},
+                )
                 mostrar_ok("Contraseña configurada.")
                 # reflejar en memoria del flujo actual
                 autor["password_hash"] = pwd_hash
                 break
             except modelo.ValidacionError as e:
                 mostrar_error(str(e))
-                if not Confirm.ask("[magenta]¿Reintentar configurar la contraseña?[/magenta]", default=True):
-                    console.print("[yellow]Registro completado sin contraseña. Deberá crearla al iniciar sesión.[/yellow]")
+                if not Confirm.ask(
+                    "[magenta]¿Reintentar configurar la contraseña?"
+                    "[/magenta]",
+                    default=True,
+                ):
+                    console.print(
+                        "[yellow]Registro completado sin contraseña. "
+                        "Deberá crearla al iniciar sesión.[/yellow]"
+                    )
                     pausar()
                     return False
             except Cancelado:
-                console.print("[yellow]Operación cancelada. Registro sin contraseña.[/yellow]")
+                console.print(
+                    "[yellow]Operación cancelada. Registro sin "
+                    "contraseña.[/yellow]"
+                )
                 pausar()
                 return False
 
@@ -682,7 +780,10 @@ def crear_autor_ui() -> None:
         None
     """
     console.print(
-        Panel.fit("[bold cyan]Crear Autor[/bold cyan]", border_style="bright_blue")
+        Panel.fit(
+            "[bold cyan]Crear Autor[/bold cyan]",
+            border_style="bright_blue",
+        )
     )
     try:
         nombre = pedir_obligatorio("Nombre del autor")
@@ -692,12 +793,23 @@ def crear_autor_ui() -> None:
         try:
             pwd = pedir_password_nuevo()
             pwd_hash = _hash_password(pwd)
-            modelo.actualizar_autor(AUTORES_CSV, autor["id_autor"], {"password_hash": pwd_hash})
-            mostrar_ok(f"Autor creado con ID [bold yellow]{autor['id_autor']}[/bold yellow] y contraseña configurada.")
+            modelo.actualizar_autor(
+                AUTORES_CSV,
+                autor["id_autor"],
+                {"password_hash": pwd_hash},
+            )
+            mostrar_ok(
+                "Autor creado con ID "
+                f"[bold yellow]{autor['id_autor']}[/bold yellow] "
+                "y contraseña configurada."
+            )
         except Cancelado:
             console.print("[yellow]Autor creado sin contraseña.[/yellow]")
         except modelo.ValidacionError as e:
-            mostrar_error(f"Autor creado, pero la contraseña no se configuró: {e}")
+            mostrar_error(
+                "Autor creado, pero la contraseña no se configuró: "
+                f"{e}"
+            )
     except Cancelado:
         console.print("[yellow]Operación cancelada.[/yellow]")
     except modelo.EmailDuplicado as e:
@@ -714,7 +826,12 @@ def ver_autores_ui() -> None:
     Returns:
         None
     """
-    console.print(Panel.fit("[bold cyan]Lista de Autores[/bold cyan]", border_style="bright_blue"))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Lista de Autores[/bold cyan]",
+            border_style="bright_blue",
+        )
+    )
     autores = modelo.leer_todos_los_autores(AUTORES_CSV)
     if not autores:
         console.print("[yellow]No hay autores registrados.[/yellow]")
@@ -734,7 +851,10 @@ def actualizar_autor_ui() -> None:
         Cancelado: Si el usuario cancela durante la edición.
     """
     console.print(
-        Panel.fit("[bold cyan]Actualizar Autor[/bold cyan]", border_style="bright_blue")
+        Panel.fit(
+            "[bold cyan]Actualizar Autor[/bold cyan]",
+            border_style="bright_blue",
+        )
     )
     # NUEVO: solo el autor en sesión puede editar su propio perfil
     if not Sesion.activa():
@@ -751,13 +871,19 @@ def actualizar_autor_ui() -> None:
 
         console.print("\nPresione Enter para no modificar un campo.")
         datos: Dict[str, Any] = {}
-        nuevo_nombre = Prompt.ask("[magenta]Nombre[/magenta]", default=autor_actual["nombre_autor"]).strip()
+        nuevo_nombre = Prompt.ask(
+            "[magenta]Nombre[/magenta]",
+            default=autor_actual["nombre_autor"],
+        ).strip()
         if nuevo_nombre == "0":
             raise Cancelado()
         if nuevo_nombre != autor_actual["nombre_autor"]:
             datos["nombre_autor"] = nuevo_nombre
 
-        nuevo_email = Prompt.ask("[magenta]Email[/magenta]", default=autor_actual["email"]).strip()
+        nuevo_email = Prompt.ask(
+            "[magenta]Email[/magenta]",
+            default=autor_actual["email"],
+        ).strip()
         if nuevo_email == "0":
             raise Cancelado()
         if nuevo_email != autor_actual["email"]:
@@ -766,11 +892,23 @@ def actualizar_autor_ui() -> None:
         if not datos:
             console.print("[yellow]No se modificó ningún dato.[/yellow]")
         else:
-            autor_act = modelo.actualizar_autor(AUTORES_CSV, id_autor, datos)
-            mostrar_ok(f"Autor actualizado: {autor_act['nombre_autor']} <{autor_act['email']}>")
+            autor_act = modelo.actualizar_autor(
+                AUTORES_CSV,
+                id_autor,
+                datos,
+            )
+            mostrar_ok(
+                "Autor actualizado: "
+                f"{autor_act['nombre_autor']} "
+                f"<{autor_act['email']}>"
+            )
     except Cancelado:
         console.print("[yellow]Operación cancelada.[/yellow]")
-    except (modelo.AutorNoEncontrado, modelo.EmailDuplicado, modelo.ValidacionError) as e:
+    except (
+        modelo.AutorNoEncontrado,
+        modelo.EmailDuplicado,
+        modelo.ValidacionError,
+    ) as e:
         mostrar_error(str(e))
     pausar()
 
@@ -782,7 +920,12 @@ def eliminar_autor_ui() -> None:
     Returns:
         None
     """
-    console.print(Panel.fit("[bold cyan]Eliminar Autor[/bold cyan]", border_style="bright_blue"))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Eliminar Autor[/bold cyan]",
+            border_style="bright_blue",
+        )
+    )
     # NUEVO: solo el autor en sesión puede eliminar su propia cuenta
     if not Sesion.activa():
         _avisar_requiere_sesion()
@@ -796,8 +939,18 @@ def eliminar_autor_ui() -> None:
         pausar()
         return
 
-    console.print(Panel(f"Eliminarás tu cuenta: [bold]{autor_actual['nombre_autor']}[/bold] <{autor_actual['email']}>", border_style="red"))
-    if not Confirm.ask("[magenta]¿Seguro que desea eliminar su cuenta?[/magenta]", default=False):
+    console.print(
+        Panel(
+            "Eliminarás tu cuenta: "
+            f"[bold]{autor_actual['nombre_autor']}[/bold] "
+            f"<{autor_actual['email']}>",
+            border_style="red",
+        )
+    )
+    if not Confirm.ask(
+        "[magenta]¿Seguro que desea eliminar su cuenta?[/magenta]",
+        default=False,
+    ):
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
@@ -831,7 +984,11 @@ def menu_autores() -> None:
                 border_style="bright_blue",
             )
         )
-        opcion = Prompt.ask("[magenta]Opción[/magenta]", choices=["1", "2", "3", "4", "5"], show_choices=False)
+        opcion = Prompt.ask(
+            "[magenta]Opción[/magenta]",
+            choices=["1", "2", "3", "4", "5"],
+            show_choices=False,
+        )
         if opcion == "1":
             crear_autor_ui()
         elif opcion == "2":
@@ -853,8 +1010,12 @@ def menu_sesion() -> None:
         None
     """
     if Sesion.activa():
-        estado = f"Conectado como [bold green]{Sesion.nombre_autor}[/bold green] <{Sesion.email}> (ID {Sesion.id_autor})"
-        console.print(Panel(estado, title="[bold cyan]Sesión[/bold cyan]", border_style="bright_cyan"))
+        estado = (f"Conectado como [bold green]"
+                  f"{Sesion.nombre_autor}[/bold green] "
+                  f"<{Sesion.email}> (ID {Sesion.id_autor})")
+        console.print(
+            Panel(estado, title="[bold cyan]Sesión[/bold cyan]"
+                  , border_style="bright_cyan"))
         if Confirm.ask("[magenta]¿Desea cerrar sesión ahora?[/magenta]", default=True):
             Sesion.limpiar()
             mostrar_ok("Sesión cerrada.")
@@ -864,7 +1025,11 @@ def menu_sesion() -> None:
         return
     else:
         console.print(
-            Panel("[yellow]No hay sesión activa.[/yellow]\nInicie sesión para continuar.", title="[bold cyan]Sesión[/bold cyan]", border_style="bright_cyan")
+            Panel(
+                "[yellow]No hay sesión activa.[/yellow]\nInicie sesión para continuar.",
+                title="[bold cyan]Sesión[/bold cyan]",
+                border_style="bright_cyan",
+            )
         )
         iniciar_sesion_ui()
         return
@@ -880,7 +1045,9 @@ def iniciar_sesion_ui() -> bool:
     Returns:
         bool: True si inicia sesión correctamente; False en caso contrario.
     """
-    console.print(Panel.fit("[bold cyan]Iniciar Sesión[/bold cyan]", border_style="bright_cyan"))
+    console.print(
+        Panel.fit("[bold cyan]Iniciar Sesión[/bold cyan]"
+                  , border_style="bright_cyan"))
     try:
         email = pedir_obligatorio("Email", to_lower=True)
         autor = modelo.buscar_autor_por_email(AUTORES_CSV, email)
@@ -888,17 +1055,22 @@ def iniciar_sesion_ui() -> bool:
         if autor:
             # Si no tiene password, forzar creación y persistir
             if not autor.get("password_hash"):
-                console.print("[yellow]Este autor no tiene contraseña. Debe crearla para continuar.[/yellow]")
+                console.print(
+                    "[yellow]Este autor no tiene contraseña. "
+                    "Debe crearla para continuar.[/yellow]")
                 try:
                     pwd_new = pedir_password_nuevo()
                     pwd_hash = _hash_password(pwd_new)
-                    modelo.actualizar_autor(AUTORES_CSV, autor["id_autor"], {"password_hash": pwd_hash})
+                    modelo.actualizar_autor(AUTORES_CSV, autor["id_autor"]
+                                            , {"password_hash": pwd_hash})
                     autor["password_hash"] = pwd_hash  # asegurar disponible en memoria
                     mostrar_ok("Contraseña creada.")
                 except (Cancelado, modelo.ValidacionError) as e:
                     if isinstance(e, modelo.ValidacionError):
                         mostrar_error(str(e))
-                    console.print("[yellow]No se configuró contraseña. Inicio cancelado.[/yellow]")
+                    console.print(
+                        "[yellow]No se configuró contraseña. "
+                        "Inicio cancelado.[/yellow]")
                     pausar()
                     return False
 
@@ -913,20 +1085,24 @@ def iniciar_sesion_ui() -> bool:
                     return True
                 else:
                     intentos -= 1
-                    mostrar_error(f"Contraseña incorrecta. Intentos restantes: {intentos}")
+                    mostrar_error(
+                        f"Contraseña incorrecta. Intentos restantes: {intentos}")
             console.print("[red]Demasiados intentos fallidos.[/red]")
             pausar()
             return False
 
         # Email no registrado: ofrecer registro (con contraseña)
         console.print("[yellow]Email no registrado.[/yellow]")
-        if Confirm.ask("[magenta]¿Desea crear una cuenta con este email?[/magenta]", default=True):
+        if Confirm.ask(
+                "[magenta]¿Desea crear una cuenta con este email?[/magenta]"
+                , default=True):
             nombre = pedir_obligatorio("Nombre del autor")
             try:
                 pwd_new = pedir_password_nuevo()
                 pwd_hash = _hash_password(pwd_new)
                 autor = modelo.crear_autor(AUTORES_CSV, nombre, email)
-                modelo.actualizar_autor(AUTORES_CSV, autor["id_autor"], {"password_hash": pwd_hash})
+                modelo.actualizar_autor(
+                    AUTORES_CSV, autor["id_autor"], {"password_hash": pwd_hash})
                 autor["password_hash"] = pwd_hash
                 Sesion.establecer(autor)
                 mostrar_ok(f"Cuenta creada e iniciada: {nombre}.")
@@ -949,7 +1125,8 @@ def iniciar_sesion_ui() -> bool:
 # --- Menús: Publicaciones ---
 def menu_publicaciones() -> None:
     """
-    Menú de publicaciones: crear, listar por autor, buscar por tag, editar y eliminar.
+    Menú de publicaciones: crear, listar por autor, buscar por tag, editar y
+    eliminar.
 
     Returns:
         None
@@ -960,14 +1137,20 @@ def menu_publicaciones() -> None:
                 "[bold yellow]1[/bold yellow]. Crear post (requiere sesión)\n"
                 "[bold yellow]2[/bold yellow]. Listar posts de un autor\n"
                 "[bold yellow]3[/bold yellow]. Buscar posts por tag\n"
-                "[bold yellow]4[/bold yellow]. Editar mi post (requiere sesión)\n"
-                "[bold yellow]5[/bold yellow]. Eliminar mi post (requiere sesión)\n"
+                "[bold yellow]4[/bold yellow]. Editar mi post "
+                "(requiere sesión)\n"
+                "[bold yellow]5[/bold yellow]. Eliminar mi post "
+                "(requiere sesión)\n"
                 "[bold yellow]6[/bold yellow]. Volver",
                 title="[bold cyan]Publicaciones[/bold cyan]",
                 border_style="bright_blue",
             )
         )
-        opcion = Prompt.ask("[magenta]Opción[/magenta]", choices=["1", "2", "3", "4", "5", "6"], show_choices=False)
+        opcion = Prompt.ask(
+            "[magenta]Opción[/magenta]",
+            choices=["1", "2", "3", "4", "5", "6"],
+            show_choices=False,
+        )
         if opcion == "1":
             crear_post_ui()
         elif opcion == "2":
@@ -995,7 +1178,8 @@ def crear_post_ui() -> None:
         return
 
     console.print(
-        Panel.fit("[bold cyan]Crear Publicación[/bold cyan]", border_style="bright_blue")
+        Panel.fit("[bold cyan]Crear Publicación[/bold cyan]"
+                  , border_style="bright_blue")
     )
     try:
         titulo = pedir_obligatorio("Título")
@@ -1019,13 +1203,22 @@ def crear_post_ui() -> None:
 
 def listar_posts_de_autor_ui() -> None:
     """
-    Lista posts de un autor (sesión o seleccionado) con opción de abrir detalle.
+    Lista posts de un autor (sesión o seleccionado) con opción de abrir
+    detalle.
 
     Returns:
         None
     """
-    console.print(Panel.fit("[bold cyan]Posts por Autor[/bold cyan]", border_style="bright_blue"))
-    if Confirm.ask("[magenta]¿Usar autor en sesión?[/magenta]", default=Sesion.activa()):
+    console.print(
+        Panel.fit(
+            "[bold cyan]Posts por Autor[/bold cyan]",
+            border_style="bright_blue",
+        )
+    )
+    if Confirm.ask(
+        "[magenta]¿Usar autor en sesión?[/magenta]",
+        default=Sesion.activa(),
+    ):
         if not Sesion.activa():
             mostrar_error("No hay sesión activa.")
             pausar()
@@ -1072,7 +1265,12 @@ def buscar_post_por_tag_ui() -> None:
     Returns:
         None
     """
-    console.print(Panel.fit("[bold cyan]Buscar Posts por Tag[/bold cyan]\n", border_style="bright_blue"))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Buscar Posts por Tag[/bold cyan]\n",
+            border_style="bright_blue",
+        )
+    )
     # Mostrar primero los tags disponibles con su conteo
     tags_conteo = _recolectar_tags_conteo()
     if not tags_conteo:
@@ -1094,15 +1292,25 @@ def buscar_post_por_tag_ui() -> None:
     try:
         posts = modelo.buscar_posts_por_tag(POSTS_JSON, tag)
         if not posts:
-            console.print("[yellow]No se encontraron publicaciones con ese tag.[/yellow]")
+            console.print(
+                "[yellow]No se encontraron publicaciones con ese tag."
+                "[/yellow]"
+            )
             pausar()
             return
         console.print(tabla_posts(posts, mostrar_autor=True))
-        if Confirm.ask("[magenta]¿Abrir un post en vista detalle?[/magenta]", default=True):
+        if Confirm.ask(
+            "[magenta]¿Abrir un post en vista detalle?[/magenta]",
+            default=True,
+        ):
             ids_validos = {p["id_post"] for p in posts}
-            id_sel = Prompt.ask("[magenta]ID del post a abrir[/magenta]").strip()
+            id_sel = Prompt.ask(
+                "[magenta]ID del post a abrir[/magenta]"
+            ).strip()
             if id_sel not in ids_validos:
-                mostrar_error("El ID no pertenece a la lista mostrada.")
+                mostrar_error(
+                    "El ID no pertenece a la lista mostrada."
+                )
                 pausar()
                 return
             ver_post_con_interacciones(id_sel)
@@ -1206,7 +1414,8 @@ def _recolectar_mis_comentarios() -> List[Dict[str, Any]]:
     Devuelve los comentarios realizados por el autor en sesión.
 
     Returns:
-        List[Dict[str, Any]]: Cada item contiene id_comentario, id_post, fecha, autor y contenido.
+        List[Dict[str, Any]]: Cada item contiene
+        id_comentario, id_post, fecha, autor y contenido.
     """
     if not Sesion.activa():
         return []
@@ -1246,13 +1455,22 @@ def _tabla_mis_comentarios(mis: List[Dict[str, Any]]) -> Table:
     tabla.add_column("Fecha", width=19)
     tabla.add_column("Contenido", overflow="fold")
     for c in mis:
-        contenido_corto = c["contenido"] if len(c["contenido"]) <= 80 else c["contenido"][:77] + "..."
-        tabla.add_row(c["id_comentario"], c["id_post"], c["fecha"], contenido_corto)
+        contenido_corto = (
+            c["contenido"]
+            if len(c["contenido"]) <= 80
+            else c["contenido"][:77] + "..."
+        )
+        tabla.add_row(
+            c["id_comentario"],
+            c["id_post"],
+            c["fecha"],
+            contenido_corto,
+        )
     return tabla
 
 def _mostrar_tabla_y_detalle_mis_comentarios(mis: List[Dict[str, Any]]) -> None:
     """
-    Muestra tabla de mis comentarios y luego la vista detalle de sus posts.
+    Muestra tabla de mis comentarios y luego la vista detalle de los posts.
 
     Args:
         mis: Lista de comentarios propios.
@@ -1291,7 +1509,10 @@ def editar_post_ui() -> None:
         pausar()
         return
 
-    console.print(Panel.fit("[bold cyan]Editar Publicación[/bold cyan]", border_style="bright_blue"))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Editar Publicación[/bold cyan]"
+            , border_style="bright_blue"))
 
     # 1) Mostrar primero mis posts (tabla + detalle)
     mis_posts = _obtener_mis_posts()
@@ -1322,7 +1543,8 @@ def editar_post_ui() -> None:
     # 3) Solicitar cambios
     console.print("\nPresione Enter para no modificar un campo.")
     nuevos: Dict[str, Any] = {}
-    nuevo_titulo = Prompt.ask("[magenta]Título[/magenta]", default=post["titulo"]).strip()
+    nuevo_titulo = Prompt.ask(
+        "[magenta]Título[/magenta]", default=post["titulo"]).strip()
     if nuevo_titulo == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
@@ -1330,7 +1552,9 @@ def editar_post_ui() -> None:
     if nuevo_titulo != post["titulo"]:
         nuevos["titulo"] = nuevo_titulo
 
-    nuevo_contenido = Prompt.ask("[magenta]Contenido[/magenta]", default=post["contenido"]).strip()
+    nuevo_contenido = Prompt.ask(
+        "[magenta]Contenido[/magenta]"
+        , default=post["contenido"]).strip()
     if nuevo_contenido == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
@@ -1353,7 +1577,9 @@ def editar_post_ui() -> None:
         return
 
     # 4) Confirmar y aplicar
-    if not Confirm.ask("[magenta]¿Confirmar actualización del post?[/magenta]", default=True):
+    if not Confirm.ask(
+            "[magenta]¿Confirmar actualización del post?[/magenta]"
+            , default=True):
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
@@ -1365,7 +1591,9 @@ def editar_post_ui() -> None:
         mis_posts = _obtener_mis_posts()
         _mostrar_tabla_y_detalle_posts(mis_posts)
         ver_post_con_interacciones(id_post)
-    except (modelo.PostNoEncontrado, modelo.AccesoNoAutorizado, modelo.ValidacionError) as e:
+    except (
+            modelo.PostNoEncontrado, modelo.AccesoNoAutorizado,
+            modelo.ValidacionError) as e:
         mostrar_error(str(e))
     pausar()
 
@@ -1382,7 +1610,10 @@ def eliminar_post_ui() -> None:
         pausar()
         return
 
-    console.print(Panel.fit("[bold cyan]Eliminar Publicación[/bold cyan]\n", border_style="bright_blue"))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Eliminar Publicación[/bold cyan]\n"
+            , border_style="bright_blue"))
 
     # 1) Mostrar primero mis posts (tabla + detalle)
     mis_posts = _obtener_mis_posts()
@@ -1405,7 +1636,9 @@ def eliminar_post_ui() -> None:
         return
 
     # 3) Confirmar y aplicar
-    if not Confirm.ask("[magenta]¿Seguro que desea eliminar este post?[/magenta]", default=False):
+    if not Confirm.ask(
+            "[magenta]¿Seguro que desea eliminar este post?[/magenta]"
+            , default=False):
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
@@ -1434,7 +1667,12 @@ def eliminar_comentario_ui() -> None:
     Returns:
         None
     """
-    console.print(Panel.fit("[bold cyan]Eliminar Comentario[/bold cyan]", border_style="bright_magenta"))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Eliminar Comentario[/bold cyan]",
+            border_style="bright_magenta",
+        )
+    )
 
     # Requiere sesión para filtrar “mis comentarios”
     if not Sesion.activa():
@@ -1470,14 +1708,19 @@ def eliminar_comentario_ui() -> None:
     id_post = posts_posibles[0]
     if len(posts_posibles) > 1:
         # Desambiguar si ese id_comentario aparece más de una vez (raro, pero seguro)
-        id_post = Prompt.ask("[magenta]ID del post que contiene el comentario[/magenta]").strip()
+        id_post = Prompt.ask(
+            "[magenta]ID del post que contiene el comentario[/magenta]"
+        ).strip()
         if id_post not in posts_posibles:
             mostrar_error("La combinación de IDs no es válida.")
             pausar()
             return
 
     # 3) Confirmar y aplicar
-    if not Confirm.ask("[magenta]¿Seguro que desea eliminar este comentario?[/magenta]", default=False):
+    if not Confirm.ask(
+        "[magenta]¿Seguro que desea eliminar este comentario?[/magenta]",
+        default=False,
+    ):
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
@@ -1514,7 +1757,12 @@ def agregar_comentario_ui() -> None:
         pausar()
         return
 
-    console.print(Panel.fit("[bold cyan]Agregar Comentario[/bold cyan]", border_style="bright_magenta"))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Agregar Comentario[/bold cyan]",
+            border_style="bright_magenta",
+        )
+    )
     id_post = Prompt.ask("[magenta]ID del post a comentar[/magenta]").strip()
     if id_post == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
@@ -1538,7 +1786,11 @@ def agregar_comentario_ui() -> None:
 
     try:
         modelo.agregar_comentario_a_post(
-            POSTS_JSON, id_post, Sesion.nombre_autor or "Anónimo", contenido, id_autor=Sesion.id_autor
+            POSTS_JSON,
+            id_post,
+            Sesion.nombre_autor or "Anónimo",
+            contenido,
+            id_autor=Sesion.id_autor,
         )
         mostrar_ok("¡Comentario publicado!")
         # Mostrar el post actualizado en vista detalle
@@ -1553,7 +1805,8 @@ def agregar_comentario_ui() -> None:
 
 def editar_comentario_ui() -> None:
     """
-    Edita un comentario propio, guiando con tabla y detalle y confirmación final.
+    Edita un comentario propio, guiando con tabla y detalle y confirmación
+    final.
 
     Returns:
         None
@@ -1563,7 +1816,12 @@ def editar_comentario_ui() -> None:
         pausar()
         return
 
-    console.print(Panel.fit("[bold cyan]Editar Comentario[/bold cyan]", border_style="bright_magenta"))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Editar Comentario[/bold cyan]",
+            border_style="bright_magenta",
+        )
+    )
 
     # 1) Mostrar primero mis comentarios (tabla + detalle de sus posts)
     mis_coms = _recolectar_mis_comentarios()
@@ -1592,7 +1850,9 @@ def editar_comentario_ui() -> None:
     posts_posibles = idx[id_com]
     id_post = posts_posibles[0]
     if len(posts_posibles) > 1:
-        id_post = Prompt.ask("[magenta]ID del post que contiene el comentario[/magenta]").strip()
+        id_post = Prompt.ask(
+            "[magenta]ID del post que contiene el comentario[/magenta]"
+        ).strip()
         if id_post not in posts_posibles:
             mostrar_error("La combinación de IDs no es válida.")
             pausar()
@@ -1606,7 +1866,10 @@ def editar_comentario_ui() -> None:
         return
     comentario_actual = None
     for c in post.get("comentarios") or []:
-        if str(c.get("id_comentario")) == id_com and str(c.get("id_autor")) == str(Sesion.id_autor):
+        if (
+            str(c.get("id_comentario")) == id_com
+            and str(c.get("id_autor")) == str(Sesion.id_autor)
+        ):
             comentario_actual = c
             break
     if not comentario_actual:
@@ -1614,8 +1877,14 @@ def editar_comentario_ui() -> None:
         pausar()
         return
 
-    nuevo_contenido = pedir_obligatorio("Nuevo contenido", default=str(comentario_actual.get("contenido", "")))
-    if not Confirm.ask("[magenta]¿Confirmar actualización del comentario?[/magenta]", default=True):
+    nuevo_contenido = pedir_obligatorio(
+        "Nuevo contenido",
+        default=str(comentario_actual.get("contenido", "")),
+    )
+    if not Confirm.ask(
+        "[magenta]¿Confirmar actualización del comentario?[/magenta]",
+        default=True,
+    ):
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
@@ -1624,15 +1893,23 @@ def editar_comentario_ui() -> None:
         # Se asume que el modelo expone esta operación. Si no existe, mostrar aviso.
         if hasattr(modelo, "actualizar_comentario_de_post"):
             modelo.actualizar_comentario_de_post(
-                POSTS_JSON, id_post, id_com, {"contenido": nuevo_contenido}, id_autor_en_sesion=Sesion.id_autor
+                POSTS_JSON,
+                id_post,
+                id_com,
+                {"contenido": nuevo_contenido},
+                id_autor_en_sesion=Sesion.id_autor,
             )
             mostrar_ok("Comentario actualizado.")
         else:
-            mostrar_error("La edición de comentarios no está disponible en el modelo (falta 'actualizar_comentario_de_post').")
+            mostrar_error(
+                "La edición de comentarios no está disponible en el "
+                "modelo (falta 'actualizar_comentario_de_post')."
+            )
             pausar()
             return
 
-        # 4) Mostrar resultado: tabla actualizada + detalle de los posts donde tengo comentarios
+        # 4) Mostrar resultado: tabla actualizada +
+        # detalle de los posts donde tengo comentarios
         mis_coms = _recolectar_mis_comentarios()
         if mis_coms:
             _mostrar_tabla_y_detalle_mis_comentarios(mis_coms)
@@ -1643,7 +1920,8 @@ def editar_comentario_ui() -> None:
         if post_act:
             console.print()
             render_post_twitter(post_act)
-    except (modelo.PostNoEncontrado, modelo.AccesoNoAutorizado, modelo.ValidacionError) as e:
+    except (modelo.PostNoEncontrado, modelo.AccesoNoAutorizado,
+            modelo.ValidacionError) as e:
         mostrar_error(str(e))
     pausar()
 
@@ -1666,7 +1944,11 @@ def menu_comentarios() -> None:
                 border_style="bright_blue",
             )
         )
-        opcion = Prompt.ask("[magenta]Opción[/magenta]", choices=["1", "2", "3", "4"], show_choices=False)
+        opcion = Prompt.ask(
+            "[magenta]Opción[/magenta]",
+            choices=["1", "2", "3", "4"],
+            show_choices=False,
+        )
         if opcion == "1":
             agregar_comentario_ui()
         elif opcion == "2":
@@ -1686,14 +1968,21 @@ def mostrar_menu_principal() -> None:
         None
     """
     sesion_txt = (
-        Text.assemble(Text("Conectado: ", style="bright_green"), Text(f"{Sesion.nombre_autor} <{Sesion.email}>", style="green"))
+        Text.assemble(
+            Text("Conectado: ", style="bright_green"),
+            Text(
+                f"{Sesion.nombre_autor} <{Sesion.email}>",
+                style="green",
+            ),
+        )
         if Sesion.activa()
         else Text("Sin sesión", style="bright_yellow")
     )
     console.print(
         Panel(
             "[bold cyan]Bienvenido a Nuestro Blog Multi-usuario[/bold cyan]\n"
-            "[bold cyan]1)[/bold cyan] [bold yellow]Publicaciones (POSTS)[/bold yellow]\n"
+            "[bold cyan]1)[/bold cyan] [bold yellow]Publicaciones (POSTS)"
+            "[/bold yellow]\n"
             "[bold cyan]2)[/bold cyan] [bold yellow]Comentarios[/bold yellow]\n"
             "[bold cyan]3)[/bold cyan] [bold yellow]Autores[/bold yellow]\n"
             "[bold cyan]4)[/bold cyan] [bold yellow]Sesión[/bold yellow]",
@@ -1710,7 +1999,8 @@ def main() -> None:
     """
     Punto de entrada de la aplicación.
 
-    Inicializa archivos, muestra bienvenida y gestiona el bucle principal del menú.
+    Inicializa archivos, muestra bienvenida y gestiona el bucle principal del
+    menú.
 
     Returns:
         None
@@ -1721,7 +2011,11 @@ def main() -> None:
     banner()
     # Salida solicitada: etiqueta y rutas en verde
     console.print(
-        f"Archivos de Datos: [green]{os.path.join('data','autores.csv')}[/green], [green]{os.path.join('data','posts.json')}[/green]"
+        (
+            "Archivos de Datos: "
+            f"[green]{os.path.join('data','autores.csv')}[/green], "
+            f"[green]{os.path.join('data','posts.json')}[/green]"
+        )
     )
 
     # Onboarding: inicio de sesión por defecto primero
@@ -1731,7 +2025,11 @@ def main() -> None:
 
     while True:
         mostrar_menu_principal()
-        opcion = Prompt.ask("[magenta]Opción[/magenta]", choices=["1", "2", "3", "4", "5"], show_choices=False)
+        opcion = Prompt.ask(
+            "[magenta]Opción[/magenta]",
+            choices=["1", "2", "3", "4", "5"],
+            show_choices=False,
+        )
         if opcion == "1":
             menu_publicaciones()
         elif opcion == "2":
@@ -1749,4 +2047,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        console.print("\n\n[bold red]Programa interrumpido por el usuario. Adiós.[/bold red]")
+        console.print(
+            "\n\n[bold red]Programa interrumpido por el usuario. "
+            "Adiós.[/bold red]"
+        )

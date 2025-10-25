@@ -6,10 +6,10 @@ Cubre utilidades no interactivas:
 - Hash y verificación de contraseñas (_hash_password, _verify_password)
 - Carga y normalización de posts (_cargar_todos_los_posts)
 - Recolección y orden de tags (_recolectar_tags_conteo)
-- Obtención de posts propios y comentarios propios (_obtener_mis_posts, _recolectar_mis_comentarios)
+- Obtención de posts y comentarios propios
 - Resolución de nombre de autor por ID (nombre_autor)
 
-Las pruebas usan un directorio temporal para no afectar data/ real.
+Las pruebas usan un directorio temporal para no afectar data real.
 """
 
 from __future__ import annotations
@@ -36,7 +36,10 @@ def _load_main_module() -> Any:
     Se evita depender de que 'src' sea un paquete instalable.
     """
     module_path = MODULE_DIR / "main.py"
-    spec = importlib.util.spec_from_file_location("main_under_test", str(module_path))
+    spec = importlib.util.spec_from_file_location(
+        "main_under_test",
+        str(module_path),
+    )
     assert spec and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)  # type: ignore[arg-type]
@@ -46,7 +49,7 @@ def _load_main_module() -> Any:
 @pytest.fixture
 def main_mod(tmp_path: Path) -> Any:
     """
-    Devuelve el módulo main cargado y preparado para usar un data/ temporal.
+    Devuelve el módulo main cargado y preparado para usar un data temporal.
     """
     mod = _load_main_module()
 
@@ -56,11 +59,9 @@ def main_mod(tmp_path: Path) -> Any:
     posts = str(data_dir / "posts.json")
     autores = str(data_dir / "autores.csv")
 
-    # Parchear rutas en el módulo
     setattr(mod, "POSTS_JSON", posts)
     setattr(mod, "AUTORES_CSV", autores)
 
-    # Inicializar archivos
     gestor_datos.inicializar_archivo(posts)
     gestor_datos.inicializar_archivo(autores)
 
@@ -69,7 +70,8 @@ def main_mod(tmp_path: Path) -> Any:
 
 def test_hash_and_verify_password_basic(main_mod: Any) -> None:
     """
-    _hash_password debe producir 'salt$hash' y _verify_password validar correcto/incorrecto.
+    _hash_password debe producir 'salt$hash' y _verify_password validar
+    correcto/incorrecto.
     """
     pwd = "secreto123"
     stored = main_mod._hash_password(pwd)
@@ -81,7 +83,7 @@ def test_hash_and_verify_password_basic(main_mod: Any) -> None:
 
 def test_verify_password_malformed_returns_false(main_mod: Any) -> None:
     """
-    _verify_password debe retornar False si 'stored' no contiene un separador válido.
+    _verify_password debe retornar False si 'stored' no contiene separador.
     """
     assert not main_mod._verify_password("sin_separador", "pwd")
 
@@ -123,7 +125,7 @@ def _sample_posts_for_tags() -> List[Dict[str, Any]]:
 
 def test_cargar_todos_los_posts_normaliza_estructura(main_mod: Any) -> None:
     """
-    _cargar_todos_los_posts debe asegurar que cada post tenga 'tags' y 'comentarios' como listas.
+    _cargar_todos_los_posts debe asegurar 'tags' y 'comentarios' como listas.
     """
     posts = _sample_posts_for_tags()
     gestor_datos.guardar_datos(main_mod.POSTS_JSON, posts)
@@ -138,8 +140,7 @@ def test_cargar_todos_los_posts_normaliza_estructura(main_mod: Any) -> None:
 
 def test_recolectar_tags_conteo_y_orden(main_mod: Any) -> None:
     """
-    _recolectar_tags_conteo debe devolver pares (tag, conteo) ordenados
-    por frecuencia descendente y luego alfabético (case-insensitive).
+    _recolectar_tags_conteo debe ordenar por frecuencia desc y luego alfabético.
     """
     posts = _sample_posts_for_tags()
     posts.append(
@@ -159,11 +160,12 @@ def test_recolectar_tags_conteo_y_orden(main_mod: Any) -> None:
     mapa = {t: c for t, c in tags_conteo}
     assert mapa.get("python", 0) == 3
     assert mapa.get("misc", 0) == 2
-    # Verificar primer elemento por orden (más usado)
     assert tags_conteo[0][0].lower() == "python"
 
 
-def test_obtener_mis_posts_sin_sesion_devuelve_lista_vacia(main_mod: Any) -> None:
+def test_obtener_mis_posts_sin_sesion_devuelve_lista_vacia(
+    main_mod: Any,
+) -> None:
     """
     _obtener_mis_posts debe devolver [] si no hay sesión activa.
     """
@@ -173,8 +175,8 @@ def test_obtener_mis_posts_sin_sesion_devuelve_lista_vacia(main_mod: Any) -> Non
 
 def test_recolectar_mis_comentarios_y_mis_posts(main_mod: Any) -> None:
     """
-    Con sesión activa, _recolectar_mis_comentarios debe filtrar por id_autor,
-    y _obtener_mis_posts debe devolver solo posts del autor en sesión.
+    Con sesión, _recolectar_mis_comentarios filtra por id_autor y
+    _obtener_mis_posts devuelve solo posts del autor en sesión.
     """
     posts = [
         {
@@ -214,11 +216,16 @@ def test_recolectar_mis_comentarios_y_mis_posts(main_mod: Any) -> None:
     ]
     gestor_datos.guardar_datos(main_mod.POSTS_JSON, posts)
 
-    main_mod.Sesion.establecer({"id_autor": "99", "nombre_autor": "Test", "email": "t@test"})
+    main_mod.Sesion.establecer(
+        {"id_autor": "99", "nombre_autor": "Test", "email": "t@test"}
+    )
     try:
         mis_coms = main_mod._recolectar_mis_comentarios()
         assert isinstance(mis_coms, list)
-        assert any(c["id_comentario"] == "100" and c["id_post"] == "10" for c in mis_coms)
+        assert any(
+            c["id_comentario"] == "100" and c["id_post"] == "10"
+            for c in mis_coms
+        )
 
         mis_posts = main_mod._obtener_mis_posts()
         assert isinstance(mis_posts, list)
@@ -230,7 +237,7 @@ def test_recolectar_mis_comentarios_y_mis_posts(main_mod: Any) -> None:
 
 def test_nombre_autor_con_indice(monkeypatch: pytest.MonkeyPatch) -> None:
     """
-    nombre_autor debe devolver el nombre si el autor existe y 'Autor #<id>' si no existe.
+    nombre_autor devuelve el nombre si existe, o 'Autor #<id>' si no existe.
     """
     mod = _load_main_module()
 
@@ -253,13 +260,13 @@ def test_tabla_tags_estructura_y_datos(main_mod: Any) -> None:
     tabla = main_mod._tabla_tags(tags_conteo)
     assert hasattr(tabla, "columns")
     assert tabla.row_count == len(tags_conteo)
-    # Dos columnas: Tag y Usos
     headers = [col.header for col in tabla.columns]
     assert headers == ["Tag", "Usos"]
 
 
-def test_render_post_twitter_no_explode_con_y_sin_comentarios(main_mod: Any) -> None:
-    # Sin comentarios
+def test_render_post_twitter_no_explode_con_y_sin_comentarios(
+    main_mod: Any,
+) -> None:
     post1 = {
         "id_post": "100",
         "id_autor": "50",
@@ -269,7 +276,6 @@ def test_render_post_twitter_no_explode_con_y_sin_comentarios(main_mod: Any) -> 
         "tags": ["x"],
         "comentarios": [],
     }
-    # Con comentarios
     post2 = {
         "id_post": "101",
         "id_autor": "51",
@@ -278,7 +284,13 @@ def test_render_post_twitter_no_explode_con_y_sin_comentarios(main_mod: Any) -> 
         "fecha_publicacion": "2025-01-02 11:00:00",
         "tags": ["y"],
         "comentarios": [
-            {"id_comentario": "1", "autor": "A", "contenido": "Hola", "fecha": "2025-01-02 11:01:00", "id_autor": "51"}
+            {
+                "id_comentario": "1",
+                "autor": "A",
+                "contenido": "Hola",
+                "fecha": "2025-01-02 11:01:00",
+                "id_autor": "51",
+            }
         ],
     }
     with main_mod.console.capture() as cap:
@@ -292,7 +304,9 @@ def test_render_post_twitter_no_explode_con_y_sin_comentarios(main_mod: Any) -> 
 def test_sesion_ciclo_activa_establecer_limpiar(main_mod: Any) -> None:
     main_mod.Sesion.limpiar()
     assert not main_mod.Sesion.activa()
-    main_mod.Sesion.establecer({"id_autor": "7", "nombre_autor": "Zoe", "email": "z@x"})
+    main_mod.Sesion.establecer(
+        {"id_autor": "7", "nombre_autor": "Zoe", "email": "z@x"}
+    )
     assert main_mod.Sesion.activa()
     assert main_mod.Sesion.id_autor == "7"
     main_mod.Sesion.limpiar()
@@ -322,7 +336,6 @@ def test_recolectar_tags_empates_orden_alfabetico(main_mod: Any) -> None:
     ]
     gestor_datos.guardar_datos(main_mod.POSTS_JSON, posts)
     tags = main_mod._recolectar_tags_conteo()
-    # ambos con conteo 2, por lo tanto orden alfabético: 'a' antes que 'b'
     assert tags[0][0] == "a"
     assert tags[1][0] == "b"
 
@@ -342,11 +355,14 @@ def test_mostrar_tabla_y_detalle_posts_no_explode(main_mod: Any) -> None:
     with main_mod.console.capture() as cap:
         main_mod._mostrar_tabla_y_detalle_posts(posts)
     out = cap.get()
-    assert "Publicaciones" in out or "Post A" in out or "Comentarios" in out
+    assert (
+        "Publicaciones" in out or "Post A" in out or "Comentarios" in out
+    )
 
 
-def test_mostrar_tabla_y_detalle_mis_comentarios_no_explode(main_mod: Any) -> None:
-    # Preparar posts y sesión
+def test_mostrar_tabla_y_detalle_mis_comentarios_no_explode(
+    main_mod: Any,
+) -> None:
     posts = [
         {
             "id_post": "55",
@@ -356,12 +372,20 @@ def test_mostrar_tabla_y_detalle_mis_comentarios_no_explode(main_mod: Any) -> No
             "fecha_publicacion": "2025-02-01 00:00:00",
             "tags": ["t"],
             "comentarios": [
-                {"id_comentario": "900", "autor": "Yo", "contenido": "Hola", "fecha": "2025-02-01 01:00:00", "id_autor": "88"}
+                {
+                    "id_comentario": "900",
+                    "autor": "Yo",
+                    "contenido": "Hola",
+                    "fecha": "2025-02-01 01:00:00",
+                    "id_autor": "88",
+                }
             ],
         }
     ]
     gestor_datos.guardar_datos(main_mod.POSTS_JSON, posts)
-    main_mod.Sesion.establecer({"id_autor": "88", "nombre_autor": "Yo", "email": "yo@x"})
+    main_mod.Sesion.establecer(
+        {"id_autor": "88", "nombre_autor": "Yo", "email": "yo@x"}
+    )
     try:
         mis = main_mod._recolectar_mis_comentarios()
         with main_mod.console.capture() as cap:
@@ -372,20 +396,27 @@ def test_mostrar_tabla_y_detalle_mis_comentarios_no_explode(main_mod: Any) -> No
         main_mod.Sesion.limpiar()
 
 
-def test_ensure_sistema_y_bienvenida_crea_y_idempotente(main_mod: Any) -> None:
-    # Al llamar, debe crear autor sistema y su post de bienvenida (si no existen)
+def test_ensure_sistema_y_bienvenida_crea_y_idempotente(
+    main_mod: Any,
+) -> None:
     p1 = main_mod.ensure_sistema_y_bienvenida()
     assert isinstance(p1, dict)
     assert main_mod.BIENVENIDA_TAG in (p1.get("tags") or [])
 
-    # Segunda llamada no debe duplicar; debe devolver el mismo post
     p2 = main_mod.ensure_sistema_y_bienvenida()
     assert p1.get("id_post") == p2.get("id_post")
 
-    # Verificar que solo exista un post de bienvenida del autor sistema
-    autor_sys = main_mod.modelo.buscar_autor_por_email(main_mod.AUTORES_CSV, main_mod.SISTEMA_EMAIL)
+    autor_sys = main_mod.modelo.buscar_autor_por_email(
+        main_mod.AUTORES_CSV,
+        main_mod.SISTEMA_EMAIL,
+    )
     assert autor_sys is not None
-    posts_tag = main_mod.modelo.buscar_posts_por_tag(main_mod.POSTS_JSON, main_mod.BIENVENIDA_TAG)
-    posts_tag_sys = [p for p in posts_tag if p.get("id_autor") == autor_sys["id_autor"]]
+    posts_tag = main_mod.modelo.buscar_posts_por_tag(
+        main_mod.POSTS_JSON,
+        main_mod.BIENVENIDA_TAG,
+    )
+    posts_tag_sys = [
+        p for p in posts_tag if p.get("id_autor") == autor_sys["id_autor"]
+    ]
     assert len(posts_tag_sys) == 1
 
