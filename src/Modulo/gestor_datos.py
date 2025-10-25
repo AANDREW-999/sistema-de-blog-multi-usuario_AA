@@ -6,8 +6,8 @@ import csv  # Lectura/escritura de archivos CSV
 import json  # Manejo de estructuras y archivos JSON
 import os  # Operaciones con rutas y sistema de archivos
 import tempfile  # Archivos temporales para escritura atómica
-from typing import Any, Dict, List  # Anotaciones de tipos para claridad
 from io import StringIO
+from typing import Any, Dict, List  # Anotaciones de tipos para claridad
 
 # Constantes de cabeceras para CSV de autores
 CAMPOS_AUTORES = ["id_autor", "nombre_autor", "email", "password_hash"]
