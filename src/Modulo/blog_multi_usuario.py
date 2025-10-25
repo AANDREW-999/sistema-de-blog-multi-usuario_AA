@@ -347,7 +347,8 @@ def crear_post(
         contenido: Contenido del post.
         tags: Lista/tupla de strings o cadena separada por comas.
         **opciones: Opciones adicionales:
-            - validar_autor_en (str): Ruta al CSV de autores para validar existencia del autor.
+            - validar_autor_en (str):
+            Ruta al CSV de autores para validar existencia del autor.
             - fecha_publicacion (str): Fecha personalizada 'YYYY-MM-DD HH:MM:SS'.
 
     Returns:
