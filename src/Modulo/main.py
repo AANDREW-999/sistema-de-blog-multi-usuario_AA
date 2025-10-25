@@ -28,12 +28,17 @@ import gestor_datos  # Persistencia (lectura/escritura CSV/JSON)
 
 # --- Rich ---
 from rich.console import Console, Group  # Consola y agrupador de componentes Rich
+from rich.markup import escape  # Escapar contenido dinámico en markup
 from rich.panel import Panel  # Paneles con bordes y títulos
 from rich.prompt import Confirm, Prompt  # Prompts interactivos (texto y confirmación)
 from rich.table import Table  # Tablas con estilos y columnas
 from rich.text import Text  # Texto con estilos
 
 console = Console()
+
+# --- Constantes (evitar valores mágicos) ---
+MIN_PASSWORD_LENGTH = 4
+RESUMEN_COMENTARIO_MAX = 80
 
 
 # --- Cancelación de formularios ---
@@ -182,7 +187,7 @@ def pedir_password_nuevo() -> str:
     """
     Solicita una nueva contraseña y su confirmación, validando reglas mínimas.
 
-    Reglas: las contraseñas deben coincidir y tener longitud mínima de 4.
+    Reglas: las contraseñas deben coincidir y tener longitud mínima definida.
 
     Returns:
         str: Contraseña válida ingresada por el usuario.
@@ -195,8 +200,10 @@ def pedir_password_nuevo() -> str:
     pwd2 = pedir("Confirmar contraseña", password=True)
     if pwd1 != pwd2:
         raise modelo.ValidacionError("Las contraseñas no coinciden.")
-    if len(pwd1) < 4:
-        raise modelo.ValidacionError("La contraseña debe tener al menos 4 caracteres.")
+    if len(pwd1) < MIN_PASSWORD_LENGTH:
+        raise modelo.ValidacionError(
+            f"La contraseña debe tener al menos {MIN_PASSWORD_LENGTH} caracteres."
+        )
     return pwd1
 
 
@@ -1010,12 +1017,15 @@ def menu_sesion() -> None:
         None
     """
     if Sesion.activa():
-        estado = (f"Conectado como [bold green]"
-                  f"{Sesion.nombre_autor}[/bold green] "
-                  f"<{Sesion.email}> (ID {Sesion.id_autor})")
+        estado = (
+            f"Conectado como [bold green]"
+            f"{escape(Sesion.nombre_autor or '')}[/bold green] "
+            f"<{escape(Sesion.email or '')}> (ID {escape(str(Sesion.id_autor or ''))})"
+        )
         console.print(
             Panel(estado, title="[bold cyan]Sesión[/bold cyan]"
-                  , border_style="bright_cyan"))
+                  , border_style="bright_cyan")
+        )
         if Confirm.ask("[magenta]¿Desea cerrar sesión ahora?[/magenta]", default=True):
             Sesion.limpiar()
             mostrar_ok("Sesión cerrada.")
@@ -1035,7 +1045,7 @@ def menu_sesion() -> None:
         return
 
 
-def iniciar_sesion_ui() -> bool:
+def iniciar_sesion_ui() -> bool:  # noqa: PLR0911, PLR0915
     """
     Flujo de inicio de sesión con verificación de contraseña.
 
@@ -1046,8 +1056,8 @@ def iniciar_sesion_ui() -> bool:
         bool: True si inicia sesión correctamente; False en caso contrario.
     """
     console.print(
-        Panel.fit("[bold cyan]Iniciar Sesión[/bold cyan]"
-                  , border_style="bright_cyan"))
+        Panel.fit("[bold cyan]Iniciar Sesión[/bold cyan]", border_style="bright_cyan")
+    )
     try:
         email = pedir_obligatorio("Email", to_lower=True)
         autor = modelo.buscar_autor_por_email(AUTORES_CSV, email)
@@ -1057,12 +1067,14 @@ def iniciar_sesion_ui() -> bool:
             if not autor.get("password_hash"):
                 console.print(
                     "[yellow]Este autor no tiene contraseña. "
-                    "Debe crearla para continuar.[/yellow]")
+                    "Debe crearla para continuar.[/yellow]"
+                )
                 try:
                     pwd_new = pedir_password_nuevo()
                     pwd_hash = _hash_password(pwd_new)
-                    modelo.actualizar_autor(AUTORES_CSV, autor["id_autor"]
-                                            , {"password_hash": pwd_hash})
+                    modelo.actualizar_autor(
+                        AUTORES_CSV, autor["id_autor"], {"password_hash": pwd_hash}
+                    )
                     autor["password_hash"] = pwd_hash  # asegurar disponible en memoria
                     mostrar_ok("Contraseña creada.")
                 except (Cancelado, modelo.ValidacionError) as e:
@@ -1070,9 +1082,11 @@ def iniciar_sesion_ui() -> bool:
                         mostrar_error(str(e))
                     console.print(
                         "[yellow]No se configuró contraseña. "
-                        "Inicio cancelado.[/yellow]")
+                        "Inicio cancelado.[/yellow]"
+                    )
                     pausar()
-                    return False
+                    # Evitar un return adicional; delegar al manejador general
+                    raise Cancelado()
 
             # Validar contraseña persistida
             intentos = 3
@@ -1086,7 +1100,8 @@ def iniciar_sesion_ui() -> bool:
                 else:
                     intentos -= 1
                     mostrar_error(
-                        f"Contraseña incorrecta. Intentos restantes: {intentos}")
+                        f"Contraseña incorrecta. Intentos restantes: {intentos}"
+                    )
             console.print("[red]Demasiados intentos fallidos.[/red]")
             pausar()
             return False
@@ -1094,15 +1109,17 @@ def iniciar_sesion_ui() -> bool:
         # Email no registrado: ofrecer registro (con contraseña)
         console.print("[yellow]Email no registrado.[/yellow]")
         if Confirm.ask(
-                "[magenta]¿Desea crear una cuenta con este email?[/magenta]"
-                , default=True):
+            "[magenta]¿Desea crear una cuenta con este email?[/magenta]",
+            default=True,
+        ):
             nombre = pedir_obligatorio("Nombre del autor")
             try:
                 pwd_new = pedir_password_nuevo()
                 pwd_hash = _hash_password(pwd_new)
                 autor = modelo.crear_autor(AUTORES_CSV, nombre, email)
                 modelo.actualizar_autor(
-                    AUTORES_CSV, autor["id_autor"], {"password_hash": pwd_hash})
+                    AUTORES_CSV, autor["id_autor"], {"password_hash": pwd_hash}
+                )
                 autor["password_hash"] = pwd_hash
                 Sesion.establecer(autor)
                 mostrar_ok(f"Cuenta creada e iniciada: {nombre}.")
@@ -1112,12 +1129,11 @@ def iniciar_sesion_ui() -> bool:
                 mostrar_error(str(e))
         pausar()
         return False
-    except Cancelado:
-        console.print("[yellow]Operación cancelada. Volviendo al menú.[/yellow]")
-        pausar()
-        return False
-    except modelo.ValidacionError as e:
-        mostrar_error(str(e))
+    except (Cancelado, modelo.ValidacionError) as e:
+        if isinstance(e, Cancelado):
+            console.print("[yellow]Operación cancelada. Volviendo al menú.[/yellow]")
+        else:
+            mostrar_error(str(e))
         pausar()
         return False
 
@@ -1178,8 +1194,9 @@ def crear_post_ui() -> None:
         return
 
     console.print(
-        Panel.fit("[bold cyan]Crear Publicación[/bold cyan]"
-                  , border_style="bright_blue")
+        Panel.fit(
+            "[bold cyan]Crear Publicación[/bold cyan]"
+            , border_style="bright_blue")
     )
     try:
         titulo = pedir_obligatorio("Título")
@@ -1332,6 +1349,7 @@ def _obtener_mis_posts() -> List[Dict[str, Any]]:
         return []
     return modelo.listar_posts_por_autor(POSTS_JSON, Sesion.id_autor)
 
+
 def _mostrar_tabla_y_detalle_posts(posts: List[Dict[str, Any]]) -> None:
     """
     Muestra una tabla de posts y a continuación su vista detalle.
@@ -1351,6 +1369,7 @@ def _mostrar_tabla_y_detalle_posts(posts: List[Dict[str, Any]]) -> None:
         render_post_twitter(p)
         console.print()  # separación entre posts
 
+
 def _cargar_todos_los_posts() -> List[Dict[str, Any]]:
     """
     Carga sin validación estricta el JSON de posts desde disco.
@@ -1367,6 +1386,7 @@ def _cargar_todos_los_posts() -> List[Dict[str, Any]]:
         return datos
     except Exception:
         return []
+
 
 # NUEVO: recolectar tags usados con conteo y tabla para mostrarlos
 def _recolectar_tags_conteo():
@@ -1385,6 +1405,7 @@ def _recolectar_tags_conteo():
                 contador[t_norm] = contador.get(t_norm, 0) + 1
     # Orden: más usados primero, luego alfabético
     return sorted(contador.items(), key=lambda kv: (-kv[1], kv[0].lower()))
+
 
 def _tabla_tags(tags_conteo) -> Table:
     """
@@ -1408,6 +1429,7 @@ def _tabla_tags(tags_conteo) -> Table:
     for tag, cnt in tags_conteo:
         tabla.add_row(str(tag), str(cnt))
     return tabla
+
 
 def _recolectar_mis_comentarios() -> List[Dict[str, Any]]:
     """
@@ -1433,6 +1455,7 @@ def _recolectar_mis_comentarios() -> List[Dict[str, Any]]:
                 })
     return mis
 
+
 def _tabla_mis_comentarios(mis: List[Dict[str, Any]]) -> Table:
     """
     Construye una tabla con los comentarios del autor en sesión.
@@ -1455,11 +1478,12 @@ def _tabla_mis_comentarios(mis: List[Dict[str, Any]]) -> Table:
     tabla.add_column("Fecha", width=19)
     tabla.add_column("Contenido", overflow="fold")
     for c in mis:
-        contenido_corto = (
-            c["contenido"]
-            if len(c["contenido"]) <= 80
-            else c["contenido"][:77] + "..."
-        )
+        contenido = c["contenido"]
+        if len(contenido) <= RESUMEN_COMENTARIO_MAX:
+            contenido_corto = contenido
+        else:
+            # Reservar 3 caracteres para '...'
+            contenido_corto = contenido[: RESUMEN_COMENTARIO_MAX - 3] + "..."
         tabla.add_row(
             c["id_comentario"],
             c["id_post"],
@@ -1467,6 +1491,7 @@ def _tabla_mis_comentarios(mis: List[Dict[str, Any]]) -> Table:
             contenido_corto,
         )
     return tabla
+
 
 def _mostrar_tabla_y_detalle_mis_comentarios(mis: List[Dict[str, Any]]) -> None:
     """
@@ -1497,7 +1522,7 @@ def _mostrar_tabla_y_detalle_mis_comentarios(mis: List[Dict[str, Any]]) -> None:
             console.print()
 
 
-def editar_post_ui() -> None:
+def editar_post_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     """
     Edita una publicación del autor en sesión, guiando con tabla y detalle.
 
@@ -1511,8 +1536,9 @@ def editar_post_ui() -> None:
 
     console.print(
         Panel.fit(
-            "[bold cyan]Editar Publicación[/bold cyan]"
-            , border_style="bright_blue"))
+            "[bold cyan]Editar Publicación[/bold cyan]", border_style="bright_blue"
+        )
+    )
 
     # 1) Mostrar primero mis posts (tabla + detalle)
     mis_posts = _obtener_mis_posts()
@@ -1544,7 +1570,8 @@ def editar_post_ui() -> None:
     console.print("\nPresione Enter para no modificar un campo.")
     nuevos: Dict[str, Any] = {}
     nuevo_titulo = Prompt.ask(
-        "[magenta]Título[/magenta]", default=post["titulo"]).strip()
+        "[magenta]Título[/magenta]", default=post["titulo"]
+    ).strip()
     if nuevo_titulo == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
@@ -1553,8 +1580,8 @@ def editar_post_ui() -> None:
         nuevos["titulo"] = nuevo_titulo
 
     nuevo_contenido = Prompt.ask(
-        "[magenta]Contenido[/magenta]"
-        , default=post["contenido"]).strip()
+        "[magenta]Contenido[/magenta]", default=post["contenido"]
+    ).strip()
     if nuevo_contenido == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
@@ -1578,8 +1605,8 @@ def editar_post_ui() -> None:
 
     # 4) Confirmar y aplicar
     if not Confirm.ask(
-            "[magenta]¿Confirmar actualización del post?[/magenta]"
-            , default=True):
+        "[magenta]¿Confirmar actualización del post?[/magenta]", default=True
+    ):
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
@@ -1592,8 +1619,10 @@ def editar_post_ui() -> None:
         _mostrar_tabla_y_detalle_posts(mis_posts)
         ver_post_con_interacciones(id_post)
     except (
-            modelo.PostNoEncontrado, modelo.AccesoNoAutorizado,
-            modelo.ValidacionError) as e:
+        modelo.PostNoEncontrado,
+        modelo.AccesoNoAutorizado,
+        modelo.ValidacionError,
+    ) as e:
         mostrar_error(str(e))
     pausar()
 
@@ -1612,8 +1641,9 @@ def eliminar_post_ui() -> None:
 
     console.print(
         Panel.fit(
-            "[bold cyan]Eliminar Publicación[/bold cyan]\n"
-            , border_style="bright_blue"))
+            "[bold cyan]Eliminar Publicación[/bold cyan]\n", border_style="bright_blue"
+        )
+    )
 
     # 1) Mostrar primero mis posts (tabla + detalle)
     mis_posts = _obtener_mis_posts()
@@ -1637,8 +1667,8 @@ def eliminar_post_ui() -> None:
 
     # 3) Confirmar y aplicar
     if not Confirm.ask(
-            "[magenta]¿Seguro que desea eliminar este post?[/magenta]"
-            , default=False):
+        "[magenta]¿Seguro que desea eliminar este post?[/magenta]", default=False
+    ):
         console.print("[yellow]Operación cancelada.[/yellow]")
         pausar()
         return
@@ -1660,7 +1690,7 @@ def eliminar_post_ui() -> None:
     pausar()
 
 
-def eliminar_comentario_ui() -> None:
+def eliminar_comentario_ui() -> None:  # noqa: PLR0912
     """
     Elimina un comentario propio, mostrando primero tabla y detalle para guiar.
 
@@ -1803,7 +1833,7 @@ def agregar_comentario_ui() -> None:
     pausar()
 
 
-def editar_comentario_ui() -> None:
+def editar_comentario_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     """
     Edita un comentario propio, guiando con tabla y detalle y confirmación
     final.
@@ -1920,8 +1950,11 @@ def editar_comentario_ui() -> None:
         if post_act:
             console.print()
             render_post_twitter(post_act)
-    except (modelo.PostNoEncontrado, modelo.AccesoNoAutorizado,
-            modelo.ValidacionError) as e:
+    except (
+        modelo.PostNoEncontrado,
+        modelo.AccesoNoAutorizado,
+        modelo.ValidacionError,
+    ) as e:
         mostrar_error(str(e))
     pausar()
 
