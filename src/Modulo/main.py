@@ -298,16 +298,6 @@ def banner() -> None:
     )
 
 
-def pausar() -> None:
-    """
-    Pausa la ejecución esperando que el usuario presione Enter.
-
-    Returns:
-        None
-    """
-    console.input("[bold blue]Dale Enter para continuar...[/bold blue]")
-
-
 def mostrar_error(mensaje: str) -> None:
     """
     Muestra un panel de error estilizado.
@@ -552,7 +542,7 @@ def ver_post_con_interacciones(id_post: str) -> None:
     post = modelo.buscar_post_por_id(POSTS_JSON, id_post)
     if not post:
         mostrar_error("No existe un post con ese ID.")
-        pausar()
+
         return
     console.print()
     render_post_twitter(post)
@@ -575,7 +565,6 @@ def ver_post_con_interacciones(id_post: str) -> None:
                     mostrar_error(str(e))
         else:
             console.print("[yellow]Inicia sesión para comentar.[/yellow]")
-    pausar()
 
 
 def ver_post_ui() -> None:
@@ -589,7 +578,7 @@ def ver_post_ui() -> None:
     id_post = Prompt.ask("[magenta]ID del post[/magenta]").strip()
     if id_post == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
+
         return
     ver_post_con_interacciones(id_post)
 
@@ -663,7 +652,7 @@ def mostrar_post_bienvenida_y_comentar() -> None:
                     mostrar_error(str(e))
         else:
             console.print("[yellow]Inicia sesión para comentar.[/yellow]")
-    pausar()
+
 
 
 # --- Onboarding inicial (registro / login) ---
@@ -755,27 +744,27 @@ def registrar_ui() -> bool:
                         "[yellow]Registro completado sin contraseña. "
                         "Deberá crearla al iniciar sesión.[/yellow]"
                     )
-                    pausar()
+
                     return False
             except Cancelado:
                 console.print(
                     "[yellow]Operación cancelada. Registro sin "
                     "contraseña.[/yellow]"
                 )
-                pausar()
+
                 return False
 
         Sesion.establecer(autor)
         mostrar_ok(f"Cuenta creada. Bienvenido, {autor['nombre_autor']}.")
-        pausar()
+
         return True
     except Cancelado:
         console.print("[yellow]Operación cancelada. Volviendo al menú.[/yellow]")
-        pausar()
+
         return False
     except (modelo.EmailDuplicado, modelo.ValidacionError) as e:
         mostrar_error(str(e))
-        pausar()
+
         return False
 
 
@@ -823,7 +812,7 @@ def crear_autor_ui() -> None:
         mostrar_error(str(e))
     except modelo.ValidacionError as e:
         mostrar_error(str(e))
-    pausar()
+
 
 
 def ver_autores_ui() -> None:
@@ -844,7 +833,7 @@ def ver_autores_ui() -> None:
         console.print("[yellow]No hay autores registrados.[/yellow]")
     else:
         console.print(tabla_autores(autores))
-    pausar()
+
 
 
 def actualizar_autor_ui() -> None:
@@ -866,14 +855,14 @@ def actualizar_autor_ui() -> None:
     # NUEVO: solo el autor en sesión puede editar su propio perfil
     if not Sesion.activa():
         _avisar_requiere_sesion()
-        pausar()
+
         return
     try:
         id_autor = Sesion.id_autor  # usar siempre el autor en sesión
         autor_actual = modelo.buscar_autor_por_id(AUTORES_CSV, id_autor)
         if not autor_actual:
             mostrar_error("No se encontró el autor de la sesión.")
-            pausar()
+
             return
 
         console.print("\nPresione Enter para no modificar un campo.")
@@ -917,7 +906,7 @@ def actualizar_autor_ui() -> None:
         modelo.ValidacionError,
     ) as e:
         mostrar_error(str(e))
-    pausar()
+
 
 
 def eliminar_autor_ui() -> None:
@@ -936,14 +925,14 @@ def eliminar_autor_ui() -> None:
     # NUEVO: solo el autor en sesión puede eliminar su propia cuenta
     if not Sesion.activa():
         _avisar_requiere_sesion()
-        pausar()
+
         return
 
     # Mostrar datos del autor a eliminar (el propio)
     autor_actual = modelo.buscar_autor_por_id(AUTORES_CSV, Sesion.id_autor)
     if not autor_actual:
         mostrar_error("No se encontró el autor de la sesión.")
-        pausar()
+
         return
 
     console.print(
@@ -959,7 +948,7 @@ def eliminar_autor_ui() -> None:
         default=False,
     ):
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
+
         return
 
     ok = modelo.eliminar_autor(AUTORES_CSV, Sesion.id_autor)
@@ -968,7 +957,7 @@ def eliminar_autor_ui() -> None:
         Sesion.limpiar()
     else:
         mostrar_error("No se pudo eliminar la cuenta.")
-    pausar()
+
 
 
 # --- Menú: Autores (CRUD) ---
@@ -1031,7 +1020,7 @@ def menu_sesion() -> None:
             mostrar_ok("Sesión cerrada.")
         else:
             console.print("[cyan]Operación cancelada.[/cyan]")
-        pausar()
+
         return
     else:
         console.print(
@@ -1084,7 +1073,7 @@ def iniciar_sesion_ui() -> bool:  # noqa: PLR0911, PLR0915
                         "[yellow]No se configuró contraseña. "
                         "Inicio cancelado.[/yellow]"
                     )
-                    pausar()
+
                     # Evitar un return adicional; delegar al manejador general
                     raise Cancelado()
 
@@ -1095,7 +1084,7 @@ def iniciar_sesion_ui() -> bool:  # noqa: PLR0911, PLR0915
                 if _verify_password(autor.get("password_hash", ""), pwd):
                     Sesion.establecer(autor)
                     mostrar_ok(f"Bienvenido, {autor['nombre_autor']}.")
-                    pausar()
+
                     return True
                 else:
                     intentos -= 1
@@ -1103,7 +1092,7 @@ def iniciar_sesion_ui() -> bool:  # noqa: PLR0911, PLR0915
                         f"Contraseña incorrecta. Intentos restantes: {intentos}"
                     )
             console.print("[red]Demasiados intentos fallidos.[/red]")
-            pausar()
+
             return False
 
         # Email no registrado: ofrecer registro (con contraseña)
@@ -1123,18 +1112,18 @@ def iniciar_sesion_ui() -> bool:  # noqa: PLR0911, PLR0915
                 autor["password_hash"] = pwd_hash
                 Sesion.establecer(autor)
                 mostrar_ok(f"Cuenta creada e iniciada: {nombre}.")
-                pausar()
+
                 return True
             except (modelo.EmailDuplicado, modelo.ValidacionError) as e:
                 mostrar_error(str(e))
-        pausar()
+
         return False
     except (Cancelado, modelo.ValidacionError) as e:
         if isinstance(e, Cancelado):
             console.print("[yellow]Operación cancelada. Volviendo al menú.[/yellow]")
         else:
             mostrar_error(str(e))
-        pausar()
+
         return False
 
 
@@ -1190,7 +1179,7 @@ def crear_post_ui() -> None:
     """
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para crear publicaciones.")
-        pausar()
+
         return
 
     console.print(
@@ -1215,7 +1204,7 @@ def crear_post_ui() -> None:
         console.print("[yellow]Operación cancelada.[/yellow]")
     except (modelo.ValidacionError, modelo.AutorNoEncontrado) as e:
         mostrar_error(str(e))
-    pausar()
+
 
 
 def listar_posts_de_autor_ui() -> None:
@@ -1238,7 +1227,7 @@ def listar_posts_de_autor_ui() -> None:
     ):
         if not Sesion.activa():
             mostrar_error("No hay sesión activa.")
-            pausar()
+
             return
         id_autor = Sesion.id_autor
     else:
@@ -1246,20 +1235,20 @@ def listar_posts_de_autor_ui() -> None:
         autores = modelo.leer_todos_los_autores(AUTORES_CSV)
         if not autores:
             console.print("[yellow]No hay autores registrados.[/yellow]")
-            pausar()
+
             return
         console.print(tabla_autores(autores))
         ids_validos = {a["id_autor"] for a in autores}
         id_autor = Prompt.ask("[magenta]ID del autor[/magenta]").strip()
         if id_autor not in ids_validos:
             mostrar_error("El ID de autor no es válido.")
-            pausar()
+
             return
 
     posts = modelo.listar_posts_por_autor(POSTS_JSON, id_autor)
     if not posts:
         console.print("[yellow]Este autor no tiene publicaciones.[/yellow]")
-        pausar()
+
         return
     console.print(tabla_posts(posts, mostrar_autor=False))
     # Abrir en vista detalle
@@ -1268,11 +1257,10 @@ def listar_posts_de_autor_ui() -> None:
         id_sel = Prompt.ask("[magenta]ID del post a abrir[/magenta]").strip()
         if id_sel not in ids_validos:
             mostrar_error("El ID no pertenece a la lista mostrada.")
-            pausar()
+
             return
         ver_post_con_interacciones(id_sel)
-    else:
-        pausar()
+
 
 
 def buscar_post_por_tag_ui() -> None:
@@ -1292,7 +1280,7 @@ def buscar_post_por_tag_ui() -> None:
     tags_conteo = _recolectar_tags_conteo()
     if not tags_conteo:
         console.print("[yellow]Aún no hay tags usados en las publicaciones.[/yellow]")
-        pausar()
+
         return
     console.print(_tabla_tags(tags_conteo))
 
@@ -1300,7 +1288,7 @@ def buscar_post_por_tag_ui() -> None:
         tag = Prompt.ask("[magenta]Tag a buscar[/magenta]").strip()
         if tag == "0":
             console.print("[yellow]Operación cancelada.[/yellow]")
-            pausar()
+
             return
         if not tag:
             mostrar_advertencia("El tag no puede estar vacío. Inténtalo de nuevo.")
@@ -1313,7 +1301,7 @@ def buscar_post_por_tag_ui() -> None:
                 "[yellow]No se encontraron publicaciones con ese tag."
                 "[/yellow]"
             )
-            pausar()
+
             return
         console.print(tabla_posts(posts, mostrar_autor=True))
         if Confirm.ask(
@@ -1328,14 +1316,10 @@ def buscar_post_por_tag_ui() -> None:
                 mostrar_error(
                     "El ID no pertenece a la lista mostrada."
                 )
-                pausar()
                 return
             ver_post_con_interacciones(id_sel)
-        else:
-            pausar()
     except modelo.ValidacionError as e:
         mostrar_error(str(e))
-        pausar()
 
 
 def _obtener_mis_posts() -> List[Dict[str, Any]]:
@@ -1531,7 +1515,6 @@ def editar_post_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     """
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para editar sus publicaciones.")
-        pausar()
         return
 
     console.print(
@@ -1544,7 +1527,6 @@ def editar_post_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     mis_posts = _obtener_mis_posts()
     if not mis_posts:
         console.print("[yellow]No tienes publicaciones para editar.[/yellow]")
-        pausar()
         return
     _mostrar_tabla_y_detalle_posts(mis_posts)
 
@@ -1553,17 +1535,14 @@ def editar_post_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     id_post = Prompt.ask("[magenta]ID del post a editar[/magenta]").strip()
     if id_post == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
     if id_post not in ids_validos:
         mostrar_error("El ID indicado no pertenece a tus publicaciones.")
-        pausar()
         return
 
     post = modelo.buscar_post_por_id(POSTS_JSON, id_post)
     if not post:
         mostrar_error("No existe un post con ese ID.")
-        pausar()
         return
 
     # 3) Solicitar cambios
@@ -1574,7 +1553,6 @@ def editar_post_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     ).strip()
     if nuevo_titulo == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
     if nuevo_titulo != post["titulo"]:
         nuevos["titulo"] = nuevo_titulo
@@ -1584,7 +1562,6 @@ def editar_post_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     ).strip()
     if nuevo_contenido == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
     if nuevo_contenido != post["contenido"]:
         nuevos["contenido"] = nuevo_contenido
@@ -1593,14 +1570,12 @@ def editar_post_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     nuevos_tags = Prompt.ask("[magenta]Tags (coma)[/magenta]", default=actuales).strip()
     if nuevos_tags == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
     if nuevos_tags != actuales:
         nuevos["tags"] = nuevos_tags
 
     if not nuevos:
         console.print("[yellow]No se modificó ningún campo.[/yellow]")
-        pausar()
         return
 
     # 4) Confirmar y aplicar
@@ -1608,7 +1583,6 @@ def editar_post_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
         "[magenta]¿Confirmar actualización del post?[/magenta]", default=True
     ):
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
 
     try:
@@ -1624,7 +1598,6 @@ def editar_post_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
         modelo.ValidacionError,
     ) as e:
         mostrar_error(str(e))
-    pausar()
 
 
 def eliminar_post_ui() -> None:
@@ -1636,7 +1609,6 @@ def eliminar_post_ui() -> None:
     """
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para eliminar sus publicaciones.")
-        pausar()
         return
 
     console.print(
@@ -1649,7 +1621,6 @@ def eliminar_post_ui() -> None:
     mis_posts = _obtener_mis_posts()
     if not mis_posts:
         console.print("[yellow]No tienes publicaciones para eliminar.[/yellow]")
-        pausar()
         return
     _mostrar_tabla_y_detalle_posts(mis_posts)
 
@@ -1658,11 +1629,11 @@ def eliminar_post_ui() -> None:
     id_post = Prompt.ask("[magenta]ID del post a eliminar[/magenta]").strip()
     if id_post == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
+
         return
     if id_post not in ids_validos:
         mostrar_error("El ID indicado no pertenece a tus publicaciones.")
-        pausar()
+
         return
 
     # 3) Confirmar y aplicar
@@ -1670,7 +1641,6 @@ def eliminar_post_ui() -> None:
         "[magenta]¿Seguro que desea eliminar este post?[/magenta]", default=False
     ):
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
 
     try:
@@ -1687,7 +1657,6 @@ def eliminar_post_ui() -> None:
             console.print("[yellow]Ya no tienes publicaciones.[/yellow]")
     except modelo.AccesoNoAutorizado as e:
         mostrar_error(str(e))
-    pausar()
 
 
 def eliminar_comentario_ui() -> None:  # noqa: PLR0912
@@ -1707,14 +1676,12 @@ def eliminar_comentario_ui() -> None:  # noqa: PLR0912
     # Requiere sesión para filtrar “mis comentarios”
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para eliminar sus comentarios.")
-        pausar()
         return
 
     # 1) Mostrar primero mis comentarios (tabla + detalle de sus posts)
     mis_coms = _recolectar_mis_comentarios()
     if not mis_coms:
         console.print("[yellow]No has realizado comentarios para eliminar.[/yellow]")
-        pausar()
         return
     _mostrar_tabla_y_detalle_mis_comentarios(mis_coms)
 
@@ -1727,11 +1694,9 @@ def eliminar_comentario_ui() -> None:  # noqa: PLR0912
     id_com = Prompt.ask("[magenta]ID del comentario a eliminar[/magenta]").strip()
     if id_com == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
     if id_com not in idx:
         mostrar_error("El ID de comentario no pertenece a tus comentarios.")
-        pausar()
         return
 
     posts_posibles = idx[id_com]
@@ -1743,7 +1708,6 @@ def eliminar_comentario_ui() -> None:  # noqa: PLR0912
         ).strip()
         if id_post not in posts_posibles:
             mostrar_error("La combinación de IDs no es válida.")
-            pausar()
             return
 
     # 3) Confirmar y aplicar
@@ -1752,7 +1716,6 @@ def eliminar_comentario_ui() -> None:  # noqa: PLR0912
         default=False,
     ):
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
 
     try:
@@ -1771,7 +1734,6 @@ def eliminar_comentario_ui() -> None:  # noqa: PLR0912
             console.print("[yellow]Ya no tienes comentarios propios.[/yellow]")
     except (modelo.PostNoEncontrado, modelo.AccesoNoAutorizado) as e:
         mostrar_error(str(e))
-    pausar()
 
 
 # --- Menú y UIs: Comentarios ---
@@ -1784,7 +1746,6 @@ def agregar_comentario_ui() -> None:
     """
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para comentar.")
-        pausar()
         return
 
     console.print(
@@ -1796,13 +1757,11 @@ def agregar_comentario_ui() -> None:
     id_post = Prompt.ask("[magenta]ID del post a comentar[/magenta]").strip()
     if id_post == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
 
     post = modelo.buscar_post_por_id(POSTS_JSON, id_post)
     if not post:
         mostrar_error("No existe un post con ese ID.")
-        pausar()
         return
 
     # Mostrar primero la vista detalle del post a comentar
@@ -1811,7 +1770,6 @@ def agregar_comentario_ui() -> None:
     contenido = pedir_obligatorio("Contenido del comentario")
     if not Confirm.ask("[magenta]¿Publicar este comentario?[/magenta]", default=True):
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
 
     try:
@@ -1830,7 +1788,6 @@ def agregar_comentario_ui() -> None:
             render_post_twitter(post_act)
     except modelo.ErrorDeDominio as e:
         mostrar_error(str(e))
-    pausar()
 
 
 def editar_comentario_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
@@ -1843,7 +1800,6 @@ def editar_comentario_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     """
     if not Sesion.activa():
         mostrar_error("Debe iniciar sesión para editar sus comentarios.")
-        pausar()
         return
 
     console.print(
@@ -1857,7 +1813,6 @@ def editar_comentario_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     mis_coms = _recolectar_mis_comentarios()
     if not mis_coms:
         console.print("[yellow]No has realizado comentarios para editar.[/yellow]")
-        pausar()
         return
     _mostrar_tabla_y_detalle_mis_comentarios(mis_coms)
 
@@ -1870,11 +1825,9 @@ def editar_comentario_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
     id_com = Prompt.ask("[magenta]ID del comentario a editar[/magenta]").strip()
     if id_com == "0":
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
     if id_com not in idx:
         mostrar_error("El ID de comentario no pertenece a tus comentarios.")
-        pausar()
         return
 
     posts_posibles = idx[id_com]
@@ -1885,14 +1838,12 @@ def editar_comentario_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
         ).strip()
         if id_post not in posts_posibles:
             mostrar_error("La combinación de IDs no es válida.")
-            pausar()
             return
 
     # Obtener el contenido actual para usarlo como default
     post = modelo.buscar_post_por_id(POSTS_JSON, id_post)
     if not post:
         mostrar_error("No existe un post con ese ID.")
-        pausar()
         return
     comentario_actual = None
     for c in post.get("comentarios") or []:
@@ -1904,7 +1855,6 @@ def editar_comentario_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
             break
     if not comentario_actual:
         mostrar_error("No se encontró el comentario a editar en ese post.")
-        pausar()
         return
 
     nuevo_contenido = pedir_obligatorio(
@@ -1916,7 +1866,6 @@ def editar_comentario_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
         default=True,
     ):
         console.print("[yellow]Operación cancelada.[/yellow]")
-        pausar()
         return
 
     try:
@@ -1935,7 +1884,6 @@ def editar_comentario_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
                 "La edición de comentarios no está disponible en el "
                 "modelo (falta 'actualizar_comentario_de_post')."
             )
-            pausar()
             return
 
         # 4) Mostrar resultado: tabla actualizada +
@@ -1956,7 +1904,6 @@ def editar_comentario_ui() -> None:  # noqa: PLR0911, PLR0912, PLR0915
         modelo.ValidacionError,
     ) as e:
         mostrar_error(str(e))
-    pausar()
 
 
 def menu_comentarios() -> None:
